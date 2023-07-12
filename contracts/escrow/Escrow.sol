@@ -120,6 +120,21 @@ contract Escrow {
         _;
     }
 
+    //Address of the reward Token to be distributed to the users
+    ITokenContract public mbzToken;
+
+    /**
+    * @dev Add reward token contract address at the time of deployment
+    * @param mbzTokenAddress Address of the reward token contract
+    */
+    constructor(
+        address mbzTokenAddress
+    )
+        nonZeroAddress(mbzTokenAddress)
+    {
+        mbzToken = ITokenContract(mbzTokenAddress);
+    }
+
     /**
     * @notice Registers a new Mobazha transaction to the contract
     * @dev To be used for moderated BNB transactions
@@ -643,6 +658,7 @@ contract Escrow {
 
             ITokenContract token = ITokenContract(t.tokenAddress);
 
+            uint256 valuePlatform = 0;
             for (uint256 j = 0; j < destinations.length; j++) {
 
                 require(
@@ -660,10 +676,9 @@ contract Escrow {
                     "Amount to be sent should be greater than 0"
                 );
 
+                // Pay 1% of vendor funds to the platform, 0.5 USD in minimum and 100 USD in maximum.
                 if (t.seller == destinations[j])
                 {
-                    // Pay 1% of vendor funds to the platform, 0.5 USD in minimum and 100 USD in maximum.
-                    uint256 valuePlatform = 0;
                     uint256 valueSeller = 0;
 
                     uint256 minFee = 1 * 10**(token.decimals()) / 2;
@@ -704,6 +719,13 @@ contract Escrow {
                 }
 
                 valueTransferred += amounts[j];
+            }
+
+            if (valuePlatform > 0) {
+                uint256 reward = valuePlatform / 2 * 10**(mbzToken.decimals() - token.decimals());
+
+                mbzToken.transfer(t.seller, reward);
+                mbzToken.transfer(t.buyer, reward);
             }
         }
         return valueTransferred;
