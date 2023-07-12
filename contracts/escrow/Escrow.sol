@@ -616,23 +616,18 @@ contract Escrow {
 
                 if (t.seller == destinations[i])
                 {
-                    // Pay 2% of vendor funds to the platform, and 1 BNB in max.
+                    // Pay 1% of vendor funds to the platform.
                     uint256 valuePlatform = 0;
                     uint256 valueSeller = 0;
-                    uint256 maxFee = 1 * 10**18;
 
-                    valuePlatform = amounts[i] * 2 / 100;
-                    if (valuePlatform > maxFee)
-                    {
-                        valuePlatform = maxFee;
-                    }
+                    valuePlatform = amounts[i] * 1 / 100;
                     valueSeller = amounts[i] - valuePlatform;
 
                     //add receiver as beneficiary
                     t.beneficiaries[destinations[i]] = true;
                     destinations[i].transfer(valueSeller);
 
-                    address payable platfromAddr = payable(address(0x19eaF93eeD18F46BDb47f8053dc9341B8B5C2f64));
+                    address payable platfromAddr = payable(address(this));
                     t.beneficiaries[platfromAddr] = true;
                     platfromAddr.transfer(valuePlatform);
                 } else {
@@ -665,15 +660,50 @@ contract Escrow {
                     "Amount to be sent should be greater than 0"
                 );
 
+                if (t.seller == destinations[j])
+                {
+                    // Pay 1% of vendor funds to the platform, 0.5 USD in minimum and 100 USD in maximum.
+                    uint256 valuePlatform = 0;
+                    uint256 valueSeller = 0;
+
+                    uint256 minFee = 1 * 10**(token.decimals()) / 2;
+                    uint256 maxFee = 100 * 10**(token.decimals());
+
+                    // If amount is less than minFee, use 1%
+                    valuePlatform = amounts[j] * 1 / 100;
+                    if (amounts[j] >= minFee) {
+                        if (valuePlatform < minFee) {
+                            valuePlatform = minFee;
+                        } else if (valuePlatform > maxFee) {
+                            valuePlatform = maxFee;
+                        }
+                    }
+
+                    valueSeller = amounts[j] - valuePlatform;
+
+                    //add receiver as beneficiary
+                    t.beneficiaries[destinations[j]] = true;
+                    require(
+                        token.transfer(destinations[j], valueSeller),
+                        "Token transfer to seller failed."
+                    );
+
+                    address payable platfromAddr = payable(address(this));
+                    t.beneficiaries[platfromAddr] = true;
+                    require(
+                        token.transfer(platfromAddr, valuePlatform),
+                        "Token transfer to seller failed."
+                    );
+                } else {
+                    //add receiver as beneficiary
+                    t.beneficiaries[destinations[j]] = true;
+                    require(
+                        token.transfer(destinations[j], amounts[j]),
+                        "Token transfer failed."
+                    );
+                }
+
                 valueTransferred += amounts[j];
-
-                //add receiver as beneficiary
-                t.beneficiaries[destinations[j]] = true;
-
-                require(
-                    token.transfer(destinations[j], amounts[j]),
-                    "Token transfer failed."
-                );
             }
         }
         return valueTransferred;

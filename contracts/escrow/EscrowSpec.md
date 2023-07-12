@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Mobazha facilitates trades between arbitrary third parties on the internet. Currently, only UTXO-based cryptocurrencies can be used as a medium of exchange on Mobazha. The escrow contract is intended to be used as a way to shoehorn Conflux functionality into Mobazha's existing framework so that users can trade using BNB and ERC20 tokens as their medium of exchange.
+Mobazha facilitates trades between arbitrary third parties on the internet. Currently, only UTXO-based cryptocurrencies can be used as a medium of exchange on Mobazha. The escrow contract is intended to be used as a way to shoehorn BSC(Binance Smart Chain) functionality into Mobazha's existing framework so that users can trade using BNB and ERC20 tokens as their medium of exchange.
 
 **IMPORTANT:** This contract supports only BNB and _compliant_ ERC20 tokens. Use of the Escrow contract with non-compliant ERC20 tokens may result in permanent loss of tokens. In particular, if the token does not return `true` upon a successful call to `token.transfer` or `token.transferFrom` you should not use the token with this escrow contract. See [this article](https://medium.com/coinmonks/missing-return-value-bug-at-least-130-tokens-affected-d67bf08521ca) for a deeper explanation. We will never present non-complaint tokens as a payment option in the Mobazha UI, but it is still possible to send (and permanently lose) such tokens by interacting with the Escrow contract through a third-party UI.
 
@@ -32,11 +32,11 @@ Offline payments occur when the buyer sees that the seller is offline and is _un
 
 ### Limitations Imposed by Mobazha's Wallet Interface
 
-Mobazha interacts with all supported coins through its [wallet interface](https://github.com/Mobazha/wallet-interface/blob/master/wallet.go#L77). This means that Mobazha's Conflux smart contracts must be designed in such a way as to be compatible with that interface. Mobazha is a live/launched product, so making big changes to the wallet interface in order to support Conflux is non-trivial. Instead, we've decided to keep the wallet interface fixed (for now), and design the smart contract to be compatible with it.
+Mobazha interacts with all supported coins through its [wallet interface](https://github.com/Mobazha/wallet-interface/blob/master/wallet.go#L77). This means that Mobazha's BSC smart contracts must be designed in such a way as to be compatible with that interface. Mobazha is a live/launched product, so making big changes to the wallet interface in order to support BSC is non-trivial. Instead, we've decided to keep the wallet interface fixed (for now), and design the smart contract to be compatible with it.
 
 ## Intended Use of the Escrow contract
 
-The Escrow contract will store the escrowed funds and state information for _every_ Mobazha trade that is using Conflux (or ERC20 tokens) as the medium of exchange. (We could have, instead, opted to deploy a new escrow contract for each Conflux-based trade -- thereby siloing escrowed funds from each trade in their own smart contract. However, we think the gas requirements for doing so are cost prohibitive, and we fear that would introduce too much friction into Conflux-based trades). Mobazha trades that use BNB/ERC20 as the medium of exchange are intended to follow the same protocol as those that use a UTXO-based coin as the medium of exchange -- and the escrow smart contract is intended to facilitate that.
+The Escrow contract will store the escrowed funds and state information for _every_ Mobazha trade that is using BSC (or ERC20 tokens) as the medium of exchange. (We could have, instead, opted to deploy a new escrow contract for each BSC-based trade -- thereby siloing escrowed funds from each trade in their own smart contract. However, we think the gas requirements for doing so are cost prohibitive, and we fear that would introduce too much friction into BSC-based trades). Mobazha trades that use BNB/ERC20 as the medium of exchange are intended to follow the same protocol as those that use a UTXO-based coin as the medium of exchange -- and the escrow smart contract is intended to facilitate that.
 
 ### Funding the Trade
 
