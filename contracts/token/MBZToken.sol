@@ -3,7 +3,7 @@ pragma solidity 0.8.4;
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
 
-contract MGLToken is ERC20Burnable {
+contract MBZToken is ERC20Burnable {
 
     constructor(
         string memory name,

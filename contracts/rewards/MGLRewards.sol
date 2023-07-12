@@ -50,7 +50,7 @@ contract MGLRewards is Ownable {
     IEscrow public escrowContract;
 
     //Address of the reward Token to be distributed to the buyers
-    ITokenContract public mglToken;
+    ITokenContract public mbzToken;
 
     //Bool to signify whether reward distribution is active or not
     bool public rewardsOn;
@@ -100,16 +100,16 @@ contract MGLRewards is Ownable {
     * will be rewarded with tokens
     * @param _escrowContractAddress Escrow address to be considered for
     * rewards distribution.
-    * @param mglTokenAddress Address of the reward token
+    * @param mbzTokenAddress Address of the reward token
     */
     constructor(
         uint256 _maxRewardPerSeller,
         uint256 _timeWindow,
         address _escrowContractAddress, // this should be a trusted contract
-        address mglTokenAddress
+        address mbzTokenAddress
     )
         nonZeroAddress(_escrowContractAddress)
-        nonZeroAddress(mglTokenAddress)
+        nonZeroAddress(mbzTokenAddress)
     {
 
         require(
@@ -125,9 +125,9 @@ contract MGLRewards is Ownable {
         maxRewardPerSeller = _maxRewardPerSeller;
         timeWindow = _timeWindow;
         escrowContract = IEscrow(_escrowContractAddress);
-        mglToken = ITokenContract(mglTokenAddress);
+        mbzToken = ITokenContract(mbzTokenAddress);
         maxRewardToBuyerPerSeller = uint256(50) * (
-            10 ** uint256(mglToken.decimals())
+            10 ** uint256(mbzToken.decimals())
         );
 
     }
@@ -244,9 +244,9 @@ contract MGLRewards is Ownable {
         onlyOwner
         nonZeroAddress(receiver)
     {
-        uint256 amount = mglToken.balanceOf(address(this));
+        uint256 amount = mbzToken.balanceOf(address(this));
 
-        mglToken.transfer(receiver, amount);
+        mbzToken.transfer(receiver, amount);
     }
 
     /**
@@ -448,7 +448,7 @@ contract MGLRewards is Ownable {
                 lastModified
             );
 
-            uint256 contractBalance = mglToken.balanceOf(address(this));
+            uint256 contractBalance = mbzToken.balanceOf(address(this));
 
             if (rewardAmount > contractBalance) {
                 rewardAmount = contractBalance;
@@ -480,7 +480,7 @@ contract MGLRewards is Ownable {
             );
 
             //8. Transfer token
-            mglToken.transfer(buyer, rewardAmount);
+            mbzToken.transfer(buyer, rewardAmount);
         }
 
     }

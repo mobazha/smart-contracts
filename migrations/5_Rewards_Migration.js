@@ -1,6 +1,6 @@
 var MGLRewards = artifacts.require("MGLRewards");
 var Escrow = artifacts.require("Escrow");
-var MGLToken = artifacts.require("MGLToken");
+var MBZToken = artifacts.require("MBZToken");
 
 module.exports = function(deployer) {
   //This is dummy data
@@ -9,6 +9,6 @@ module.exports = function(deployer) {
     "50000000000000000000",
     432000,
     Escrow.address,
-    MGLToken.address
+    MBZToken.address
   );
 };
