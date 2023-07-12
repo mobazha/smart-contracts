@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MGL
+// SPDX-License-Identifier: MBZ
 pragma solidity 0.8.4;
 
 interface IEscrow {

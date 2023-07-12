@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MGL
+// SPDX-License-Identifier: MBZ
 /* solium-disable security/no-block-members */
 
 pragma solidity 0.8.4;
