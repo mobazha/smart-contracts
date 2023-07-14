@@ -68,6 +68,8 @@ contract Escrow {
     //which they are either the buyer or the seller
     mapping(address => bytes32[]) private partyVsTransaction;
 
+    address private _owner;
+
     modifier transactionExists(bytes32 scriptHash) {
         require(
             transactions[scriptHash].value != 0, "Transaction does not exist"
@@ -116,7 +118,7 @@ contract Escrow {
     modifier onlyBuyer(bytes32 scriptHash) {
         require(
             msg.sender == transactions[scriptHash].buyer,
-            "The initiator of the transaction is not buyer"
+            "Not buyer"
         );
         _;
     }
@@ -133,7 +135,25 @@ contract Escrow {
     )
         nonZeroAddress(mbzTokenAddress)
     {
+        _owner = msg.sender;
+
         mbzToken = ITokenContract(mbzTokenAddress);
+    }
+
+    /**
+    * @dev Allows the owner of the contract to transfer all remaining tokens to
+    * an address of their choosing.
+    * @param receiver The receiver's address
+    */
+    function transferRemainingTokens(
+        address receiver
+    )
+        external
+        nonZeroAddress(receiver)
+    {
+        require(msg.sender == _owner, "Not the owner");
+
+        mbzToken.transfer(receiver, mbzToken.balanceOf(address(this)));
     }
 
     /**
@@ -290,19 +310,16 @@ contract Escrow {
         view
         returns (bool)
     {
-        bool voted = false;
-
         for (uint256 i = 0; i < transactions[scriptHash].noOfReleases; i++){
 
             bytes32 addressHash = keccak256(abi.encodePacked(party, i));
 
             if (transactions[scriptHash].voted[addressHash]){
-                voted = true;
-                break;
+                return true;
             }
         }
 
-        return voted;
+        return false;
     }
 
     /**
@@ -322,7 +339,7 @@ contract Escrow {
         onlyBuyer(scriptHash)
 
     {
-        require(msg.value > 0, "Value must be greater than zero.");
+        require(msg.value > 0, "Value must be greater than 0.");
 
         transactions[scriptHash].value += msg.value;
 
@@ -346,7 +363,7 @@ contract Escrow {
         checkTransactionType(scriptHash, TransactionType.TOKEN)
         onlyBuyer(scriptHash)
     {
-        require(value > 0, "Value must be greater than zero.");
+        require(value > 0, "Value must be greater than 0.");
 
         ITokenContract token = ITokenContract(
             transactions[scriptHash].tokenAddress
@@ -403,7 +420,7 @@ contract Escrow {
     {
         require(
             destinations.length > 0,
-            "Number of destinations must be greater than 0"
+            "No destination"
         );
         require(
             destinations.length == amounts.length,
@@ -436,7 +453,7 @@ contract Escrow {
 
         require(
             transactions[scriptHash].value >= transactions[scriptHash].released,
-            "Value of transaction should be greater than released value"
+            "Insufficient balance"
         );
     }
 
@@ -545,8 +562,8 @@ contract Escrow {
                     t.beneficiaries[destinations[i]] = true;
                     destinations[i].transfer(amounts[i] - valuePlatform);
 
-                    t.beneficiaries[address(this)] = true;
-                    payable(address(this)).transfer(valuePlatform);
+                    t.beneficiaries[_owner] = true;
+                    payable(_owner).transfer(valuePlatform);
                 } else {
                     //add receiver as beneficiary
                     t.beneficiaries[destinations[i]] = true;
@@ -564,18 +581,11 @@ contract Escrow {
                 // Pay 1% of vendor funds to the platform, 0.5 USD in minimum and 100 USD in maximum.
                 if (t.seller == destinations[j])
                 {
-                    uint256 minFee = 1 * 10**(token.decimals()) / 2;
-                    uint256 maxFee = 100 * 10**(token.decimals());
-
-                    // If amount is less than minFee, use 1%
-                    valuePlatform = amounts[j] * 1 / 100;
-                    if (amounts[j] >= minFee) {
-                        if (valuePlatform < minFee) {
-                            valuePlatform = minFee;
-                        } else if (valuePlatform > maxFee) {
-                            valuePlatform = maxFee;
-                        }
-                    }
+                    valuePlatform = ScriptHashCalculator.calculatePlatformFee(
+                        amounts[j], 
+                        1 * 10**(token.decimals()) / 2,
+                        100 * 10**(token.decimals())
+                    );
 
                     //add receiver as beneficiary
                     if (amounts[j] - valuePlatform > 0) {
@@ -586,9 +596,9 @@ contract Escrow {
                         );
                     }
 
-                    t.beneficiaries[address(this)] = true;
+                    t.beneficiaries[_owner] = true;
                     require(
-                        token.transfer(address(this), valuePlatform),
+                        token.transfer(_owner, valuePlatform),
                         "Transfer to platform failed."
                     );
                 } else {
@@ -606,8 +616,15 @@ contract Escrow {
             if (valuePlatform > 0) {
                 uint256 reward = valuePlatform / 2 * 10**(mbzToken.decimals() - token.decimals());
 
-                mbzToken.transfer(t.seller, reward);
-                mbzToken.transfer(t.buyer, reward);
+                require(
+                    mbzToken.transfer(t.seller, reward),
+                    "Transfer MBZ to seller failed."
+                );
+
+                require(
+                    mbzToken.transfer(t.buyer, reward),
+                    "Transfer MBZ to seller failed."
+                );
             }
         }
         return valueTransferred;
@@ -733,9 +750,9 @@ contract Escrow {
         private
     {
         require(buyer != seller, "Buyer and seller are same");
-        require(value > 0, "Value passed is 0");
-        require(threshold > 0, "Threshold must be greater than 0");
-        require(threshold <= 3, "Threshold must not be greater than 3");
+        require(value > 0, "Value 0");
+        require(threshold > 0, "Threshold 0");
+        require(threshold <= 3, "Threshold greater than 3");
 
         //when threshold is 1 that indicates the Mobazha transaction is not
         //being moderated, so `moderator` can be any address

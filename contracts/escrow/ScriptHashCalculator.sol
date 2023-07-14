@@ -96,4 +96,25 @@ library ScriptHashCalculator {
             );
         }
     }
+
+    function calculatePlatformFee(
+        uint256 amount,
+        uint256 minFee,
+        uint256 maxFee
+    )
+        public
+        pure
+        returns (uint256)
+    {
+        // If amount is less than minFee, use 1%
+        uint256 valuePlatform = amount * 1 / 100;
+        if (amount >= minFee) {
+            if (valuePlatform < minFee) {
+                valuePlatform = minFee;
+            } else if (valuePlatform > maxFee && maxFee > 0) {
+                valuePlatform = maxFee;
+            }
+        }
+        return valuePlatform;
+    }
 }
