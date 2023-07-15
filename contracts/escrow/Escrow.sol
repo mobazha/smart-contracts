@@ -534,12 +534,12 @@ contract Escrow {
         for (uint256 i = 0; i < destinations.length; i++) {
             require(
                 destinations[i] != address(0),
-                "zero address is not allowed as destination address"
+                "zero address is not allowed"
             );
 
             require(
                 t.isOwner[destinations[i]],
-                "Destination address is not one of the owners"
+                "Not one of the owners"
             );
 
             require(
@@ -776,6 +776,7 @@ contract Escrow {
         );
 
         Transaction storage transaction = transactions[scriptHash];
+        transaction.buyer = buyer;
         transaction.seller = seller;
         transaction.moderator = moderator;
         transaction.value = value;
