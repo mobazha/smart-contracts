@@ -12,7 +12,8 @@
     "migrate": "truffle migrate",
     "test:bsc": "truffle test --config=truffle-config.bsc.js --network bscTestnet",
     "compile:bsc": "truffle compile --config=truffle-config.bsc.js",
-    "migrate:bsc": "truffle migrate --config=truffle-config.bsc.js --network bscTestnet"
+    "migrate:bsc": "truffle migrate --config=truffle-config.bsc.js --network bscTestnet",
+    "migrate:polygon": "truffle migrate --config=truffle-config.bsc.js --network polygonTestnet"
   },
   "repository": {},
   "keywords": [
