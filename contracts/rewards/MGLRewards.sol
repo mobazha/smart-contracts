@@ -389,7 +389,7 @@ contract MGLRewards is Ownable {
     {
         //1. Execute transaction
         //SECURITY NOTE: `escrowContract` is a known and trusted contract, but
-        //the `execute` function transfers BNB or Tokens, and therefore hands
+        //the `execute` function transfers ETH or Tokens, and therefore hands
         //over control of the logic flow to a potential attacker.
         escrowContract.execute(
             sigV,

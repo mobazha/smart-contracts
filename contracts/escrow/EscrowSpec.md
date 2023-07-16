@@ -2,9 +2,9 @@
 
 ## Introduction
 
-Mobazha facilitates trades between arbitrary third parties on the internet. Currently, only UTXO-based cryptocurrencies can be used as a medium of exchange on Mobazha. The escrow contract is intended to be used as a way to shoehorn BSC(Binance Smart Chain) functionality into Mobazha's existing framework so that users can trade using BNB and ERC20 tokens as their medium of exchange.
+Mobazha facilitates trades between arbitrary third parties on the internet. Currently, only UTXO-based cryptocurrencies can be used as a medium of exchange on Mobazha. The escrow contract is intended to be used as a way to shoehorn BSC(Binance Smart Chain) functionality into Mobazha's existing framework so that users can trade using ETH and ERC20 tokens as their medium of exchange.
 
-**IMPORTANT:** This contract supports only BNB and _compliant_ ERC20 tokens. Use of the Escrow contract with non-compliant ERC20 tokens may result in permanent loss of tokens. In particular, if the token does not return `true` upon a successful call to `token.transfer` or `token.transferFrom` you should not use the token with this escrow contract. See [this article](https://medium.com/coinmonks/missing-return-value-bug-at-least-130-tokens-affected-d67bf08521ca) for a deeper explanation. We will never present non-complaint tokens as a payment option in the Mobazha UI, but it is still possible to send (and permanently lose) such tokens by interacting with the Escrow contract through a third-party UI.
+**IMPORTANT:** This contract supports only ETH and _compliant_ ERC20 tokens. Use of the Escrow contract with non-compliant ERC20 tokens may result in permanent loss of tokens. In particular, if the token does not return `true` upon a successful call to `token.transfer` or `token.transferFrom` you should not use the token with this escrow contract. See [this article](https://medium.com/coinmonks/missing-return-value-bug-at-least-130-tokens-affected-d67bf08521ca) for a deeper explanation. We will never present non-complaint tokens as a payment option in the Mobazha UI, but it is still possible to send (and permanently lose) such tokens by interacting with the Escrow contract through a third-party UI.
 
 ### How Mobazha Trades Currently Work (in UTXO land)
 
@@ -36,11 +36,11 @@ Mobazha interacts with all supported coins through its [wallet interface](https:
 
 ## Intended Use of the Escrow contract
 
-The Escrow contract will store the escrowed funds and state information for _every_ Mobazha trade that is using BSC (or ERC20 tokens) as the medium of exchange. (We could have, instead, opted to deploy a new escrow contract for each BSC-based trade -- thereby siloing escrowed funds from each trade in their own smart contract. However, we think the gas requirements for doing so are cost prohibitive, and we fear that would introduce too much friction into BSC-based trades). Mobazha trades that use BNB/ERC20 as the medium of exchange are intended to follow the same protocol as those that use a UTXO-based coin as the medium of exchange -- and the escrow smart contract is intended to facilitate that.
+The Escrow contract will store the escrowed funds and state information for _every_ Mobazha trade that is using BSC (or ERC20 tokens) as the medium of exchange. (We could have, instead, opted to deploy a new escrow contract for each BSC-based trade -- thereby siloing escrowed funds from each trade in their own smart contract. However, we think the gas requirements for doing so are cost prohibitive, and we fear that would introduce too much friction into BSC-based trades). Mobazha trades that use ETH/ERC20 as the medium of exchange are intended to follow the same protocol as those that use a UTXO-based coin as the medium of exchange -- and the escrow smart contract is intended to facilitate that.
 
 ### Funding the Trade
 
-Buyers initiate a trade by creating/storing a _Transaction_ struct in the Escrow contract and (simultaneously) funding the transaction by sending BNB (or ERC20 tokens) to the Escrow contract. At this point the transaction is in the _FUNDED_ state. While in the _FUNDED_ state, the buyer may add more BNB (or ERC20 tokens) to escrow if necessary. Adding more funds to escrow _does not_ result in any changes to _timeoutHours_ (see next section).
+Buyers initiate a trade by creating/storing a _Transaction_ struct in the Escrow contract and (simultaneously) funding the transaction by sending ETH (or ERC20 tokens) to the Escrow contract. At this point the transaction is in the _FUNDED_ state. While in the _FUNDED_ state, the buyer may add more ETH (or ERC20 tokens) to escrow if necessary. Adding more funds to escrow _does not_ result in any changes to _timeoutHours_ (see next section).
 
 ### Releasing Funds from Escrow
 

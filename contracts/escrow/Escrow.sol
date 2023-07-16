@@ -7,7 +7,7 @@ import "./ScriptHashCalculator.sol";
 
 /**
 * @title Mobazha Escrow
-* @notice Holds BNB and ERC20 tokens for moderated trades on the Mobazha
+* @notice Holds ETH and ERC20 tokens for moderated trades on the Mobazha
 * platform. See the specification here:
 * https://github.com/mobazha/bsc-smart-contracts/blob/master/contracts/escrow/EscrowSpec.md
 * @dev Do not use this contract with tokens that do not strictly adhere to the
@@ -20,7 +20,7 @@ contract Escrow {
 
     enum Status {FUNDED, RELEASED}
 
-    enum TransactionType {BNB, TOKEN}
+    enum TransactionType {ETH, TOKEN}
 
     event Executed(
         bytes32 indexed scriptHash,
@@ -158,7 +158,7 @@ contract Escrow {
 
     /**
     * @notice Registers a new Mobazha transaction to the contract
-    * @dev To be used for moderated BNB transactions
+    * @dev To be used for moderated ETH transactions
     * @param buyer The buyer associated with the Mobazha transaction
     * @param seller The seller associated with the Mobazha transaction
     * @param moderator The moderator (if any) associated with the Mobazha
@@ -172,7 +172,7 @@ contract Escrow {
     * specification for more details
     * @param uniqueId A nonce chosen by the buyer
     * @dev This call is intended to be made by the buyer and should send the
-    * amount of BNB to be put in escrow
+    * amount of ETH to be put in escrow
     * @dev You MUST NOT pass a contract address for buyer, seller, or moderator
     * or else funds could be locked in this contract permanently. Releasing
     * funds from this contract require signatures that cannot be created by
@@ -202,7 +202,7 @@ contract Escrow {
             scriptHash,
             msg.value,
             uniqueId,
-            TransactionType.BNB,
+            TransactionType.ETH,
             address(0)
         );
 
@@ -323,7 +323,7 @@ contract Escrow {
     }
 
     /**
-    * @notice Allows the buyer in an Mobazha transaction to add more BNB to
+    * @notice Allows the buyer in an Mobazha transaction to add more ETH to
     * an existing transaction
     * @param scriptHash The scriptHash of the Mobazha transaction to which
     * funds will be added
@@ -335,7 +335,7 @@ contract Escrow {
         payable
         transactionExists(scriptHash)
         inFundedState(scriptHash)
-        checkTransactionType(scriptHash, TransactionType.BNB)
+        checkTransactionType(scriptHash, TransactionType.ETH)
         onlyBuyer(scriptHash)
 
     {
@@ -551,7 +551,7 @@ contract Escrow {
         uint256 valueTransferred = 0;
         uint256 valuePlatform = 0;
 
-        if (t.transactionType == TransactionType.BNB) {
+        if (t.transactionType == TransactionType.ETH) {
             for (uint256 i = 0; i < destinations.length; i++) {
                 if (t.seller == destinations[i])
                 {
@@ -731,9 +731,9 @@ contract Escrow {
     * @param value The amount of currency to add to escrow
     * @param uniqueId A nonce chosen by the buyer
     * @param transactionType Indicates whether the Mobazha trade is using
-    * BNB or ERC20 tokens for payment
+    * ETH or ERC20 tokens for payment
     * @param tokenAddress The address of the ERC20 token being used for
-    * payment. Set to 0 if the Mobazha transaction is settling in BNB
+    * payment. Set to 0 if the Mobazha transaction is settling in ETH
     */
     function _addTransaction(
         address buyer,
