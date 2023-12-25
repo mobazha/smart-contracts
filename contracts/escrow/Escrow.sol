@@ -538,11 +538,6 @@ contract Escrow {
             );
 
             require(
-                t.isOwner[destinations[i]],
-                "Not one of the owners"
-            );
-
-            require(
                 amounts[i] > 0,
                 "Amount to be sent should be greater than 0"
             );
