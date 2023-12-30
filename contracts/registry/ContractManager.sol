@@ -1,4 +1,4 @@
-/* solium-disable security/no-block-members */
+// SPDX-License-Identifier: MBZ
 
 pragma solidity 0.8.4;
 
@@ -124,14 +124,14 @@ contract ContractManager is Ownable {
         onlyOwner
         nonZeroAddress(implementation)
     {
-        // version name must not be the empty string
-        require(bytes(versionName).length>0, "Empty string passed as version");
-
         // contract name must not be the empty string
         require(
             bytes(contractName).length>0,
             "Empty string passed as contract name"
         );
+
+        // version name must not be the empty string
+        require(bytes(versionName).length>0, "Empty string passed as version");
 
         // implementation must be a contract
         require(

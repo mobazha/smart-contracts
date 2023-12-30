@@ -81,6 +81,7 @@ module.exports = {
     polygonMainnet: {
       provider: () => new HDWalletProvider(mnemonic, `https://polygon-rpc.com`),
       network_id: 137,
+      gas: 16721975,
       confirmations: 10,
       timeoutBlocks: 200,
       skipDryRun: true
