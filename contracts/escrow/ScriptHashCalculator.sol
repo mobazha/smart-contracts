@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MBZ
 pragma solidity 0.8.4;
 
+import "../token/ITokenContract.sol";
+
 library ScriptHashCalculator {
     /**
     * @notice Gives the hash that the parties need to sign in order to
@@ -99,19 +101,35 @@ library ScriptHashCalculator {
 
     function calculatePlatformFee(
         uint256 amount,
-        uint256 minFee,
-        uint256 maxFee
+        bool isToken,
+        address tokenAddress
     )
         public
-        pure
+        view
         returns (uint256)
     {
-        // If amount is less than minFee, use 1%
+        // 1) Since currently we cannot get exchange rate in contract, we cannot evaluate
+        //    min and max fee for mainnet coin (ETH). We simply use 1% for the fee.
+        // 2) For USDT and USDC tokens, pay 1% of vendor funds to the platform, 
+        //    with 0.5 USD in minimum and 100 USD in maximum.
+
         uint256 valuePlatform = amount * 1 / 100;
+        if (!isToken) {
+            return valuePlatform;
+        }
+
+        ITokenContract token = ITokenContract(tokenAddress);
+
+        // Pay 1% of vendor funds to the platform, 0.5 USD in minimum and 100 USD in maximum.
+        uint256 minFee = 1 * 10**(token.decimals()) / 2;
+        uint256 maxFee = 100 * 10**(token.decimals());
+
+        // If amount is less than minFee, use 1%
+        
         if (amount >= minFee) {
             if (valuePlatform < minFee) {
                 valuePlatform = minFee;
-            } else if (valuePlatform > maxFee && maxFee > 0) {
+            } else if (valuePlatform > maxFee) {
                 valuePlatform = maxFee;
             }
         }

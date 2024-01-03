@@ -139,3 +139,19 @@ In order to run the test currently in the boilerplate, use the following command
 ## Support
 
 Support for this box is available via the Truffle community [here](https://www.trufflesuite.com/community) or on our official [Discord Channel](https://discord.com/channels/789402563035660308/912296662834241597).
+
+
+
+1. Compile contracts
+npm run compile
+2. Update migration scripts in ./migration folder
+3. Run migration
+npm run migrate:polygon
+
+To generate abi and bin (using @chainsafe/truffle-plugin-abigen plugin):
+truffle run abigen
+
+To generate go file:
+abigen --bin=bin/Escrow.bin  --abi=abi/Escrow.abi --pkg Escrow --out ../escrow_v1.go
+abigen --bin=bin/ERC20.bin  --abi=abi/ERC20.abi --pkg Token --out ../erc20.go
+abigen --bin=bin/ContractManager.bin  --abi=abi/ContractManager.abi --pkg Registry --out ../contract_manager.go

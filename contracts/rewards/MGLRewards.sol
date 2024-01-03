@@ -4,6 +4,7 @@
 pragma solidity 0.8.4;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "../escrow/Common.sol";
 import "../token/ITokenContract.sol";
 import "../escrow/IEscrow.sol";
 
@@ -380,8 +381,7 @@ contract MGLRewards is Ownable {
         bytes32[] memory sigR,
         bytes32[] memory sigS,
         bytes32 scriptHash,
-        address[] memory destinations,
-        uint256[] memory amounts
+        PayData memory payData
     )
         public
         rewardsRunning
@@ -396,8 +396,8 @@ contract MGLRewards is Ownable {
             sigR,
             sigS,
             scriptHash,
-            destinations,
-            amounts
+            payData,
+            OrderFinishType.OTHER
         );
 
         //2. Claim Reward

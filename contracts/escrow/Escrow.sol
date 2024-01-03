@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MBZ
 pragma solidity 0.8.4;
 
+import "./Common.sol";
 import "../token/ITokenContract.sol";
 import "./ScriptHashCalculator.sol";
 
@@ -25,7 +26,9 @@ contract Escrow {
     event Executed(
         bytes32 indexed scriptHash,
         address payable[] destinations,
-        uint256[] amounts
+        uint256[] amounts,
+        Role[] roles,
+        OrderFinishType finishType
     );
 
     event FundAdded(
@@ -138,22 +141,6 @@ contract Escrow {
         _owner = msg.sender;
 
         mbzToken = ITokenContract(mbzTokenAddress);
-    }
-
-    /**
-    * @dev Allows the owner of the contract to transfer all remaining tokens to
-    * an address of their choosing.
-    * @param receiver The receiver's address
-    */
-    function transferRemainingTokens(
-        address receiver
-    )
-        external
-        nonZeroAddress(receiver)
-    {
-        require(msg.sender == _owner, "Not the owner");
-
-        mbzToken.transfer(receiver, mbzToken.balanceOf(address(this)));
     }
 
     /**
@@ -403,37 +390,53 @@ contract Escrow {
     * @param sigR Array containing R component of all the signatures
     * @param sigS Array containing S component of all the signatures
     * @param scriptHash ScriptHash of the transaction
-    * @param destinations List of addresses who will receive funds
-    * @param amounts List of amounts to be released to the destinations
+    * @param payData Struct containing target destinations, amounts and user roles
+    * @param finishType order finish type
     */
     function execute(
         uint8[] calldata sigV,
         bytes32[] calldata sigR,
         bytes32[] calldata sigS,
         bytes32 scriptHash,
-        address payable[] calldata destinations,
-        uint256[] calldata amounts
+        PayData calldata payData,
+        OrderFinishType finishType
     )
         external
         transactionExists(scriptHash)
         fundsExist(scriptHash)
     {
         require(
-            destinations.length > 0,
+            payData.destinations.length > 0,
             "No destination"
         );
         require(
-            destinations.length == amounts.length,
+            payData.destinations.length == payData.amounts.length,
             "Number of destinations must match number of values sent"
         );
+        require(
+            payData.destinations.length == payData.roles.length,
+            "Number of destinations must match number of user roles"
+        );
+
+        for (uint256 i = 0; i < payData.destinations.length; i++) {
+            require(
+                payData.destinations[i] != address(0),
+                "zero address is not allowed"
+            );
+
+            require(
+                payData.amounts[i] > 0,
+                "Amount to be sent should be greater than 0"
+            );
+        }
 
         _verifyTransaction(
             sigV,
             sigR,
             sigS,
             scriptHash,
-            destinations,
-            amounts
+            payData.destinations,
+            payData.amounts
         );
 
         transactions[scriptHash].status = Status.RELEASED;
@@ -445,11 +448,11 @@ contract Escrow {
 
         transactions[scriptHash].released += _transferFunds(
             scriptHash,
-            destinations,
-            amounts
+            payData,
+            finishType
         );
 
-        emit Executed(scriptHash, destinations, amounts);
+        emit Executed(scriptHash, payData.destinations, payData.amounts, payData.roles, finishType);
 
         require(
             transactions[scriptHash].value >= transactions[scriptHash].released,
@@ -517,98 +520,79 @@ contract Escrow {
     /**
     * @notice Method to transfer funds to a set of destinations
     * @param scriptHash Hash identifying the Mobazha transaction
-    * @param destinations List of addresses who will receive funds
-    * @param amounts List of amounts to be released to the destinations
+    * @param payData Struct containing target destinations, amounts and user roles
     * @return the total amount of funds that were paid out
     */
     function _transferFunds(
         bytes32 scriptHash,
-        address payable[] memory destinations,
-        uint256[] memory amounts
+        PayData memory payData,
+        OrderFinishType finishType
     )
         private
         returns (uint256)
     {
         Transaction storage t = transactions[scriptHash];
 
-        for (uint256 i = 0; i < destinations.length; i++) {
-            require(
-                destinations[i] != address(0),
-                "zero address is not allowed"
-            );
+        // We only charge platform fee from vendor when it is a successful order.
+        uint256 valuePlatform = 0;
 
-            require(
-                amounts[i] > 0,
-                "Amount to be sent should be greater than 0"
-            );
+        if (finishType == OrderFinishType.COMPLETE) {
+            uint256 vendorIndex = 0;
+            for (uint256 i = 0; i < payData.destinations.length; i++) {
+                if (payData.roles[i] == Role.VENDOR) {
+                    vendorIndex = i+1;
+                    break;
+                }
+            }
+            
+            if (vendorIndex > 0) {
+                valuePlatform = ScriptHashCalculator.calculatePlatformFee(payData.amounts[vendorIndex - 1], t.transactionType == TransactionType.TOKEN, t.tokenAddress);
+                payData.amounts[vendorIndex - 1] = payData.amounts[vendorIndex - 1] - valuePlatform;
+            }
         }
 
         uint256 valueTransferred = 0;
-        uint256 valuePlatform = 0;
-
         if (t.transactionType == TransactionType.ETH) {
-            for (uint256 i = 0; i < destinations.length; i++) {
-                if (t.seller == destinations[i])
-                {
-                    // Pay 1% of vendor funds to the platform.
-                    valuePlatform = amounts[i] * 1 / 100;
+            for (uint256 i = 0; i < payData.destinations.length; i++) {
+                //add receiver as beneficiary
+                t.beneficiaries[payData.destinations[i]] = true;
+                payData.destinations[i].transfer(payData.amounts[i]);
 
-                    //add receiver as beneficiary
-                    t.beneficiaries[destinations[i]] = true;
-                    destinations[i].transfer(amounts[i] - valuePlatform);
-
-                    t.beneficiaries[_owner] = true;
-                    payable(_owner).transfer(valuePlatform);
-                } else {
-                    //add receiver as beneficiary
-                    t.beneficiaries[destinations[i]] = true;
-                    destinations[i].transfer(amounts[i]);
-                }
-
-                valueTransferred += amounts[i];
-            }
-
-        } else if (t.transactionType == TransactionType.TOKEN) {
-            ITokenContract token = ITokenContract(t.tokenAddress);
-
-            for (uint256 j = 0; j < destinations.length; j++) {
-
-                // Pay 1% of vendor funds to the platform, 0.5 USD in minimum and 100 USD in maximum.
-                if (t.seller == destinations[j])
-                {
-                    valuePlatform = ScriptHashCalculator.calculatePlatformFee(
-                        amounts[j], 
-                        1 * 10**(token.decimals()) / 2,
-                        100 * 10**(token.decimals())
-                    );
-
-                    //add receiver as beneficiary
-                    if (amounts[j] - valuePlatform > 0) {
-                        t.beneficiaries[destinations[j]] = true;
-                        require(
-                            token.transfer(destinations[j], amounts[j] - valuePlatform),
-                            "Transfer to seller failed."
-                        );
-                    }
-
-                    t.beneficiaries[_owner] = true;
-                    require(
-                        token.transfer(_owner, valuePlatform),
-                        "Transfer to platform failed."
-                    );
-                } else {
-                    //add receiver as beneficiary
-                    t.beneficiaries[destinations[j]] = true;
-                    require(
-                        token.transfer(destinations[j], amounts[j]),
-                        "Token transfer failed."
-                    );
-                }
-
-                valueTransferred += amounts[j];
+                valueTransferred += payData.amounts[i];
             }
 
             if (valuePlatform > 0) {
+                t.beneficiaries[_owner] = true;
+                payable(_owner).transfer(valuePlatform);
+
+                valueTransferred += valuePlatform;
+            }
+        } else if (t.transactionType == TransactionType.TOKEN) {
+            ITokenContract token = ITokenContract(t.tokenAddress);
+
+            for (uint256 j = 0; j < payData.destinations.length; j++) {
+
+                //add receiver as beneficiary
+                t.beneficiaries[payData.destinations[j]] = true;
+                require(
+                    token.transfer(payData.destinations[j], payData.amounts[j]),
+                    "Token transfer failed."
+                );
+
+                valueTransferred += payData.amounts[j];
+            }
+
+            // Just send MBZ token for USDC and USDC. For main net coin, as we don't know the exchange
+            // rate, we don't know how many MBZ tokens to send.
+            if (valuePlatform > 0) {
+                t.beneficiaries[_owner] = true;
+                require(
+                    token.transfer(_owner, valuePlatform),
+                    "Transfer to platform failed."
+                );
+
+                valueTransferred += valuePlatform;
+
                 uint256 reward = valuePlatform / 2 * 10**(mbzToken.decimals() - token.decimals());
 
                 require(

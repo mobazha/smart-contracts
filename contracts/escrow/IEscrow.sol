@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MBZ
 pragma solidity 0.8.4;
 
+import "./Common.sol";
+
 interface IEscrow {
 
     function transactions(
@@ -56,8 +58,8 @@ interface IEscrow {
         bytes32[] calldata sigR,
         bytes32[] calldata sigS,
         bytes32 scriptHash,
-        address[] calldata destinations,
-        uint256[] calldata amounts
+        PayData calldata payData,
+        OrderFinishType finishType
     )
         external;
 
