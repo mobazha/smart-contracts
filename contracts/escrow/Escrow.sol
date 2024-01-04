@@ -144,6 +144,48 @@ contract Escrow {
     }
 
     /**
+    * @dev Allows the owner of the contract to transfer all remaining MBZ tokens to
+    * an address of their choosing.
+    * @param receiver The receiver's address
+    */
+    function transferRemainingMBZTokens(
+        address receiver
+    )
+        external
+        nonZeroAddress(receiver)
+    {
+        require(msg.sender == _owner, "Not the owner");
+
+        mbzToken.transfer(receiver, mbzToken.balanceOf(address(this)));
+    }
+
+    /**
+    * @dev Allows the owner of the contract to transfer funds to an address of their choosing.
+    // If it is main net coin, tokenAddress can be 0
+    * @param receiver The receiver's address
+    */
+    function transferLockedFunds(
+        address receiver,
+        uint256 value,
+        TransactionType transactionType,
+        address tokenAddress
+    )
+        external
+        nonZeroAddress(receiver)
+    {
+        require(msg.sender == _owner, "Not the owner");
+
+        require(value > 0, "Value 0");
+
+        if (transactionType == TransactionType.ETH) {
+            payable(receiver).transfer(value);
+        } else {
+            ITokenContract token = ITokenContract(tokenAddress);
+            require(token.transfer(receiver, value), "Token transfer failed.");
+        }
+    }
+
+    /**
     * @notice Registers a new Mobazha transaction to the contract
     * @dev To be used for moderated ETH transactions
     * @param buyer The buyer associated with the Mobazha transaction
