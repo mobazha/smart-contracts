@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MBZ
-pragma solidity 0.8.4;
+pragma solidity ^0.8.22;
 
 enum Role {BUYER, VENDOR, MODERATOR}
 

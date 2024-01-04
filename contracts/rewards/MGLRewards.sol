@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MBZ
 /* solium-disable security/no-block-members */
 
-pragma solidity 0.8.4;
+pragma solidity ^0.8.22;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "../escrow/Common.sol";
