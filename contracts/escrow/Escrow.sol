@@ -536,18 +536,13 @@ contract Escrow {
         // We only charge platform fee from vendor when it is a successful order.
         uint256 valuePlatform = 0;
 
+        // For order complete, usually there is only one destination
         if (finishType == OrderFinishType.COMPLETE) {
-            uint256 vendorIndex = 0;
             for (uint256 i = 0; i < payData.destinations.length; i++) {
                 if (payData.roles[i] == Role.VENDOR) {
-                    vendorIndex = i+1;
+                    valuePlatform = ScriptHashCalculator.calculatePlatformFee(payData.amounts[i], t.transactionType == TransactionType.TOKEN, t.tokenAddress);
                     break;
                 }
-            }
-            
-            if (vendorIndex > 0) {
-                valuePlatform = ScriptHashCalculator.calculatePlatformFee(payData.amounts[vendorIndex - 1], t.transactionType == TransactionType.TOKEN, t.tokenAddress);
-                payData.amounts[vendorIndex - 1] = payData.amounts[vendorIndex - 1] - valuePlatform;
             }
         }
 
@@ -556,54 +551,58 @@ contract Escrow {
             for (uint256 i = 0; i < payData.destinations.length; i++) {
                 //add receiver as beneficiary
                 t.beneficiaries[payData.destinations[i]] = true;
-                payData.destinations[i].transfer(payData.amounts[i]);
+
+                if (payData.roles[i] == Role.VENDOR && valuePlatform > 0) {
+                    payData.destinations[i].transfer(payData.amounts[i] - valuePlatform);
+
+                    t.beneficiaries[_owner] = true;
+                    payable(_owner).transfer(valuePlatform);
+                } else {
+                    payData.destinations[i].transfer(payData.amounts[i]);
+                }
 
                 valueTransferred += payData.amounts[i];
             }
-
-            if (valuePlatform > 0) {
-                t.beneficiaries[_owner] = true;
-                payable(_owner).transfer(valuePlatform);
-
-                valueTransferred += valuePlatform;
-            }
         } else if (t.transactionType == TransactionType.TOKEN) {
             ITokenContract token = ITokenContract(t.tokenAddress);
-
             for (uint256 j = 0; j < payData.destinations.length; j++) {
-
                 //add receiver as beneficiary
                 t.beneficiaries[payData.destinations[j]] = true;
-                require(
-                    token.transfer(payData.destinations[j], payData.amounts[j]),
-                    "Token transfer failed."
-                );
+
+                if (payData.roles[j] == Role.VENDOR && valuePlatform > 0) {
+                    require(
+                        token.transfer(payData.destinations[j], payData.amounts[j] - valuePlatform),
+                        "Token transfer failed."
+                    );
+
+                    t.beneficiaries[_owner] = true;
+                    require(
+                        token.transfer(_owner, valuePlatform),
+                        "Transfer to platform failed."
+                    );
+
+                    // Just send MBZ token for USDC and USDC. For main net coin, as we don't know the exchange
+                    // rate, we don't know how many MBZ tokens to send.
+                    uint256 reward = valuePlatform / 2 * 10**(mbzToken.decimals() - token.decimals());
+
+                    // Transfer MBZ token to built-in wallet instead of external for further use
+                    require(
+                        mbzToken.transfer(t.seller, reward),
+                        "Transfer MBZ to seller failed."
+                    );
+
+                    require(
+                        mbzToken.transfer(t.buyer, reward),
+                        "Transfer MBZ to buyer failed."
+                    );
+                } else {
+                    require(
+                        token.transfer(payData.destinations[j], payData.amounts[j]),
+                        "Token transfer failed."
+                    );
+                }
 
                 valueTransferred += payData.amounts[j];
-            }
-
-            // Just send MBZ token for USDC and USDC. For main net coin, as we don't know the exchange
-            // rate, we don't know how many MBZ tokens to send.
-            if (valuePlatform > 0) {
-                t.beneficiaries[_owner] = true;
-                require(
-                    token.transfer(_owner, valuePlatform),
-                    "Transfer to platform failed."
-                );
-
-                valueTransferred += valuePlatform;
-
-                uint256 reward = valuePlatform / 2 * 10**(mbzToken.decimals() - token.decimals());
-
-                require(
-                    mbzToken.transfer(t.seller, reward),
-                    "Transfer MBZ to seller failed."
-                );
-
-                require(
-                    mbzToken.transfer(t.buyer, reward),
-                    "Transfer MBZ to seller failed."
-                );
             }
         }
         return valueTransferred;

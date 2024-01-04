@@ -126,7 +126,7 @@ library ScriptHashCalculator {
 
         // If amount is less than minFee, use 1%
         
-        if (amount >= minFee) {
+        if (amount > minFee) {
             if (valuePlatform < minFee) {
                 valuePlatform = minFee;
             } else if (valuePlatform > maxFee) {
