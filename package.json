@@ -13,7 +13,8 @@
     "test:bsc": "truffle test --config=truffle-config.js --network bscTestnet",
     "compile:bsc": "truffle compile --config=truffle-config.js",
     "migrate:bsc": "truffle migrate --config=truffle-config.js --network bscTestnet",
-    "migrate:polygon": "truffle migrate --config=truffle-config.js --network polygonTestnet"
+    "migrate:polygon": "truffle migrate --config=truffle-config.js --network polygonTestnet",
+    "migrate:conflux": "truffle migrate --config=truffle-config.js --network confluxTestnet"
   },
   "repository": {},
   "keywords": [

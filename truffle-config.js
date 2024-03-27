@@ -85,6 +85,21 @@ module.exports = {
       confirmations: 10,
       timeoutBlocks: 200,
       skipDryRun: true
+    },
+    confluxTestnet:{
+      provider: () => new HDWalletProvider(mnemonic, `https://evmtestnet.confluxrpc.com`),
+      network_id: 71,
+      confirmations: 10,
+      timeoutBlocks: 200,
+      skipDryRun: true
+    },
+    confluxMainnet: {
+      provider: () => new HDWalletProvider(mnemonic, `https://evm.confluxrpc.com`),
+      network_id: 1030,
+      gas: 16721975,
+      confirmations: 10,
+      timeoutBlocks: 200,
+      skipDryRun: true
     }
   },
 
