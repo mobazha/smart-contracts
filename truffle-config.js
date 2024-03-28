@@ -76,6 +76,8 @@ module.exports = {
       network_id: 80001,
       confirmations: 10,
       timeoutBlocks: 200,
+      pollingInterval: 1800000,
+      disableConfirmationListener: true,
       skipDryRun: true
     },
     polygonMainnet: {
@@ -89,15 +91,17 @@ module.exports = {
     confluxTestnet:{
       provider: () => new HDWalletProvider(mnemonic, `https://evmtestnet.confluxrpc.com`),
       network_id: 71,
-      confirmations: 10,
+      confirmations: 3,
       timeoutBlocks: 200,
+      pollingInterval: 1800000,
+      disableConfirmationListener: true,
       skipDryRun: true
     },
     confluxMainnet: {
       provider: () => new HDWalletProvider(mnemonic, `https://evm.confluxrpc.com`),
       network_id: 1030,
       gas: 16721975,
-      confirmations: 10,
+      confirmations: 3,
       timeoutBlocks: 200,
       skipDryRun: true
     }
