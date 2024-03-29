@@ -100,9 +100,11 @@ module.exports = {
     confluxMainnet: {
       provider: () => new HDWalletProvider(mnemonic, `https://evm.confluxrpc.com`),
       network_id: 1030,
-      gas: 16721975,
-      confirmations: 3,
+      // gas: 16721975,
+      confirmations: 2,
       timeoutBlocks: 200,
+      pollingInterval: 1800000,
+      disableConfirmationListener: true,
       skipDryRun: true
     }
   },
