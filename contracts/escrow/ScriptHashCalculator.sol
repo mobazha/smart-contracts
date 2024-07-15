@@ -101,6 +101,7 @@ library ScriptHashCalculator {
 
     function calculatePlatformFee(
         uint256 amount,
+        uint8 platformFeePercentage,
         bool isToken,
         address tokenAddress
     )
@@ -113,7 +114,11 @@ library ScriptHashCalculator {
         // 2) For USDT and USDC tokens, pay 1% of vendor funds to the platform, 
         //    with 0.5 USD in minimum and 100 USD in maximum.
 
-        uint256 valuePlatform = amount * 1 / 100;
+        if (platformFeePercentage == 0) {
+            return 0;
+        }
+
+        uint256 valuePlatform = amount * platformFeePercentage / 100;
         if (!isToken) {
             return valuePlatform;
         }

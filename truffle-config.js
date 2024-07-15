@@ -81,7 +81,7 @@ module.exports = {
       skipDryRun: true
     },
     polygonMainnet: {
-      provider: () => new HDWalletProvider(mnemonic, `https://polygon-rpc.com`),
+      provider: () => new HDWalletProvider(mnemonic, `https://polygon-bor-rpc.publicnode.com`),
       network_id: 137,
       gas: 16721975,
       confirmations: 10,

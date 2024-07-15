@@ -67,6 +67,8 @@ contract Escrow {
 
     uint256 public transactionCount = 0;
 
+    uint8 public platformFeePercentage = 0;
+
     //maps address to array of scriptHashes of all Mobazha transacations for
     //which they are either the buyer or the seller
     mapping(address => bytes32[]) private partyVsTransaction;
@@ -183,6 +185,18 @@ contract Escrow {
             ITokenContract token = ITokenContract(tokenAddress);
             require(token.transfer(receiver, value), "Token transfer failed.");
         }
+    }
+
+    function setPlatformFeePercentage(
+        uint8 value
+    )
+        external
+    {
+        require(msg.sender == _owner, "Not the owner");
+
+        require(value < 100, "Value 100");
+
+        platformFeePercentage = value;
     }
 
     /**
@@ -582,7 +596,7 @@ contract Escrow {
         if (finishType == OrderFinishType.COMPLETE) {
             for (uint256 i = 0; i < payData.destinations.length; i++) {
                 if (payData.roles[i] == Role.VENDOR) {
-                    valuePlatform = ScriptHashCalculator.calculatePlatformFee(payData.amounts[i], t.transactionType == TransactionType.TOKEN, t.tokenAddress);
+                    valuePlatform = ScriptHashCalculator.calculatePlatformFee(payData.amounts[i], platformFeePercentage, t.transactionType == TransactionType.TOKEN, t.tokenAddress);
                     break;
                 }
             }
