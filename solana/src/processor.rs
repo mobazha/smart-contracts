@@ -55,7 +55,7 @@ impl Processor {
                 Self::process_sign(accounts)
             }
             EscrowInstruction::Release { payment_targets } => {
-                Self::process_release(program_id, accounts, payment_targets)
+                Self::process_release(accounts, payment_targets)
             }
         }
     }
@@ -106,22 +106,6 @@ impl Processor {
         };
 
         // 初始化托管状态
-        let escrow = Escrow {
-            state: EscrowState::Active,
-            buyer: *buyer.key,
-            seller: *seller.key,
-            moderator,
-            token_type: token_type_clone,  // 使用克隆的值
-            amount: 0, // 将在 Deposit 时设置
-            unlock_time,  // 0表示没有时间锁
-            required_signatures,
-            buyer_signed: false,
-            seller_signed: false,
-            moderator_signed: false,
-            is_initialized: true,
-            unique_id,
-        };
-
         // 在 process_initialize 中应该使用 PDA 而不是直接创建账户
         let moderator_ref = moderator.as_ref().map(|m| m.as_ref()).unwrap_or(&[]);
         let mut seeds = vec![
@@ -172,6 +156,24 @@ impl Processor {
                 &[&signer_seeds[..]],
             )?;
         }
+
+        // 将 bump_seed 存储到 Escrow 结构中以便后续使用
+        let escrow = Escrow {
+            state: EscrowState::Active,
+            buyer: *buyer.key,
+            seller: *seller.key,
+            moderator,
+            token_type: token_type_clone,
+            amount: 0,
+            unlock_time,
+            required_signatures,
+            buyer_signed: false,
+            seller_signed: false,
+            moderator_signed: false,
+            is_initialized: true,
+            unique_id,
+            bump_seed, // 添加这个字段到 Escrow 结构体中
+        };
 
         escrow.pack_into_slice(&mut escrow_account.data.borrow_mut());
         msg!("Escrow initialized: {:?}", escrow_account.key);
@@ -296,7 +298,6 @@ impl Processor {
     }
 
     fn process_release(
-        program_id: &Pubkey,
         accounts: &[AccountInfo],
         payment_targets: Vec<PaymentTarget>,
     ) -> ProgramResult {
@@ -380,8 +381,7 @@ impl Processor {
                     &escrow.unique_id,
                 ];
 
-                let (_, bump_seed) = Pubkey::find_program_address(&seeds[..], program_id);
-                let bump = [bump_seed];
+                let bump = [escrow.bump_seed];
                 seeds.push(&bump);
                 let signer_seeds = &seeds[..];
 

@@ -37,6 +37,7 @@ pub struct Escrow {
     pub moderator_signed: bool,       // 1 byte
     pub is_initialized: bool,         // 1 byte
     pub unique_id: [u8; 20],         // 20 bytes
+    pub bump_seed: u8,                // 1 byte
 }
 
 impl Sealed for Escrow {}
@@ -76,6 +77,7 @@ impl Default for Escrow {
             moderator_signed: false,
             is_initialized: false,
             unique_id: [0; 20],
+            bump_seed: 0,
         }
     }
 }
