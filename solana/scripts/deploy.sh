@@ -11,7 +11,7 @@ if (( $(echo "$BALANCE < 1" | bc -l) )); then
 fi
 
 # 构建程序
-cargo build-bpf --manifest-path=./Cargo.toml --bpf-out-dir=./target/deploy
+cargo build-sbf --manifest-path=./Cargo.toml --sbf-out-dir=./target/deploy
 
 # 部署程序
 PROGRAM_ID=$(solana program deploy ./target/deploy/time_locked_multisig.so)
