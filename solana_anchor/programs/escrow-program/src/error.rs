@@ -20,9 +20,6 @@ pub enum EscrowError {
     #[msg("无效的签名者")]
     InvalidSigner,
     
-    #[msg("账户已经被签名")]
-    AlreadySigned,
-    
     #[msg("未满足所需签名数量")]
     InsufficientSignatures,
     
@@ -40,4 +37,7 @@ pub enum EscrowError {
     
     #[msg("没有签名")]
     NoSignature,
+    
+    #[msg("无效的签名")]
+    InvalidSignature,
 } 

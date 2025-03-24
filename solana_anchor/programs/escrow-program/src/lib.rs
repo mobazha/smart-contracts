@@ -5,7 +5,7 @@ pub mod instructions;
 pub mod error;
 
 use state::*;
-use instructions::{initialize::*, sign::*, release::*};
+use instructions::{initialize::*, release::*};
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
@@ -33,14 +33,11 @@ pub mod escrow_program {
         )
     }
 
-    pub fn sign(ctx: Context<Sign>) -> Result<()> {
-        instructions::sign::handler(ctx)
-    }
-
     pub fn release(
         ctx: Context<Release>,
         payment_amounts: Vec<u64>,
+        signatures: Vec<Vec<u8>>
     ) -> Result<()> {
-        instructions::release::handler(ctx, payment_amounts)
+        instructions::release::handler(ctx, payment_amounts, signatures)
     }
 } 

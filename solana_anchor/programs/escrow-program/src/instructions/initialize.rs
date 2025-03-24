@@ -81,9 +81,6 @@ pub fn handler(
     escrow.amount = amount;
     escrow.unlock_time = ctx.accounts.clock.unix_timestamp + (unlock_hours as i64 * 3600);
     escrow.required_signatures = required_signatures;
-    escrow.buyer_signed = false;
-    escrow.seller_signed = false;
-    escrow.moderator_signed = false;
     escrow.is_initialized = true;
     escrow.unique_id = unique_id;
 

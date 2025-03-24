@@ -3,9 +3,14 @@ use anchor_spl::token::{self, Token, TokenAccount, CloseAccount, Transfer};
 use crate::{state::*, error::*};
 use spl_token::state::Account as SplTokenAccount;
 use spl_token::solana_program::program_pack::Pack;
+use anchor_lang::solana_program::ed25519_program;
+use anchor_lang::solana_program::instruction::Instruction;
 
 #[derive(Accounts)]
-#[instruction(payment_amounts: Vec<u64>)]
+#[instruction(
+    payment_amounts: Vec<u64>,
+    signatures: Vec<Vec<u8>>
+)]
 pub struct Release<'info> {
     #[account(
         constraint = (initiator.key() == escrow_account.buyer || 
@@ -71,6 +76,7 @@ pub struct Release<'info> {
 pub fn handler(
     ctx: Context<Release>,
     payment_amounts: Vec<u64>,
+    signatures: Vec<Vec<u8>>
 ) -> Result<()> {
     // 首先获取所有需要的数据，避免后续借用冲突
     let escrow_data = extract_escrow_data(&ctx.accounts.escrow_account);
@@ -86,14 +92,13 @@ pub fn handler(
     // 验证支付目标和金额
     verify_payment_amounts(&payment_amounts, escrow_data.amount)?;
     
-    // 验证签名和时间锁
-    verify_signatures_and_timelock(
-        ctx.accounts.clock.unix_timestamp,
-        escrow_data.unlock_time,
-        escrow_data.required_signatures,
-        escrow_data.buyer_signed,
-        escrow_data.seller_signed, 
-        escrow_data.moderator_signed
+    // 验证签名
+    verify_signatures(
+        &ctx, 
+        &escrow_data,
+        &signatures, 
+        &payment_amounts,
+        ctx.accounts.clock.unix_timestamp
     )?;
 
     // 修改为在调用点创建种子
@@ -111,9 +116,6 @@ pub fn handler(
     // 修改escrow状态
     let escrow = &mut ctx.accounts.escrow_account;
     escrow.amount = 0;
-    escrow.buyer_signed = false;
-    escrow.seller_signed = false;
-    escrow.moderator_signed = false;
     
     // 执行资金转移
     match escrow_data.token_type {
@@ -176,9 +178,6 @@ fn extract_escrow_data(escrow: &Account<Escrow>) -> EscrowData {
         amount: escrow.amount,
         unlock_time: escrow.unlock_time,
         required_signatures: escrow.required_signatures,
-        buyer_signed: escrow.buyer_signed,
-        seller_signed: escrow.seller_signed,
-        moderator_signed: escrow.moderator_signed,
     }
 }
 
@@ -216,26 +215,151 @@ fn verify_payment_amounts(payment_amounts: &[u64], total_amount: u64) -> Result<
     Ok(())
 }
 
-// 验证签名和时间锁
-fn verify_signatures_and_timelock(
-    current_time: i64, 
-    unlock_time: i64,
-    required_signatures: u8,
-    buyer_signed: bool,
-    seller_signed: bool,
-    moderator_signed: bool
+fn verify_signatures<'info>(
+    ctx: &Context<Release<'info>>,
+    escrow: &EscrowData,
+    signatures: &[Vec<u8>],
+    payment_amounts: &[u64],
+    current_time: i64
 ) -> Result<()> {
-    let signatures_count = buyer_signed as u8 + seller_signed as u8 + moderator_signed as u8;
-    let time_expired = current_time >= unlock_time;
+    // 收集所有接收者账户
+    let recipients = collect_recipient_accounts(ctx)?;
+    require!(recipients.len() >= payment_amounts.len(), EscrowError::InvalidPaymentTargets);
     
-    if !time_expired && signatures_count < required_signatures {
-        return err!(EscrowError::InsufficientSignatures);
-    } else if time_expired && !seller_signed {
-        // 确保即使时间锁过期，卖家仍需签名
-        return err!(EscrowError::InsufficientSignatures);
+    // 检查时间锁是否过期
+    let time_expired = current_time >= escrow.unlock_time;
+    
+    // 如果时间未过期，需要验证签名数量
+    if !time_expired {
+        // 验证签名数量是否足够
+        require!(signatures.len() >= escrow.required_signatures as usize, 
+                EscrowError::InsufficientSignatures);
+        
+        // 创建需要签名的消息
+        let message = create_signature_message(
+            &escrow.unique_id,
+            &recipients,
+            payment_amounts
+        );
+        
+        // 按照角色类型验证签名：买家、卖家、仲裁人
+        let mut buyer_signed = false;
+        let mut seller_signed = false;
+        let mut moderator_signed = false;
+        
+        for signature in signatures {
+            // 尝试验证买家签名
+            if !buyer_signed && verify_signature(&escrow.buyer, &message, signature) {
+                buyer_signed = true;
+                continue;
+            }
+            
+            // 尝试验证卖家签名
+            if !seller_signed && verify_signature(&escrow.seller, &message, signature) {
+                seller_signed = true;
+                continue;
+            }
+            
+            // 尝试验证仲裁人签名（如果有仲裁人）
+            if !moderator_signed && escrow.moderator.is_some() && 
+               verify_signature(&escrow.moderator.unwrap(), &message, signature) {
+                moderator_signed = true;
+                continue;
+            }
+        }
+        
+        // 计算有效签名数量
+        let valid_signatures = buyer_signed as u8 + seller_signed as u8 + moderator_signed as u8;
+        require!(valid_signatures >= escrow.required_signatures, 
+                EscrowError::InsufficientSignatures);
+    } else {
+        // 时间锁过期，但卖家必须签名
+        let message = create_signature_message(
+            &escrow.unique_id,
+            &recipients,
+            payment_amounts
+        );
+        
+        // 验证是否有卖家的签名
+        let mut seller_signed = false;
+        for signature in signatures {
+            if verify_signature(&escrow.seller, &message, signature) {
+                seller_signed = true;
+                break;
+            }
+        }
+        
+        require!(seller_signed, EscrowError::InsufficientSignatures);
     }
     
     Ok(())
+}
+
+// 辅助函数：创建签名消息
+fn create_signature_message(
+    unique_id: &[u8; 20], 
+    recipients: &[AccountInfo],
+    amounts: &[u64]
+) -> Vec<u8> {
+    let mut message = Vec::new();
+    message.extend_from_slice(unique_id);
+    
+    // 添加支付目标账户和金额到消息
+    for (idx, amount) in amounts.iter().enumerate() {
+        let recipient_pubkey = recipients[idx].key();
+        message.extend_from_slice(recipient_pubkey.as_ref());
+        message.extend_from_slice(&amount.to_le_bytes());
+    }
+    
+    message
+}
+
+// 修复Ed25519签名验证函数，遵循正确的数据格式
+fn verify_signature(
+    signer: &Pubkey,
+    message: &[u8],
+    signature: &[u8]
+) -> bool {
+    if signature.len() != 64 {
+        return false;
+    }
+    
+    // 构建ed25519程序的指令数据
+    let mut data = Vec::with_capacity(
+        1 + // 指令类型
+        1 + // 签名数量
+        1 + 64 + // 签名长度前缀 + 签名数据
+        1 + 32 + // 公钥长度前缀 + 公钥数据
+        2 + message.len() // 消息长度(2字节) + 消息数据
+    );
+    
+    data.push(0); // 指令类型: 0 = 验证
+    data.push(1); // 一个签名
+    
+    data.push(64); // 签名长度: 64字节
+    data.extend_from_slice(signature); // 签名数据
+    
+    data.push(1); // 一个公钥
+    data.push(32); // 公钥长度: 32字节
+    data.extend_from_slice(signer.as_ref()); // 公钥数据
+    
+    // 消息长度（小端序，2字节）
+    let msg_len = message.len() as u16;
+    data.push((msg_len & 0xFF) as u8);
+    data.push(((msg_len >> 8) & 0xFF) as u8);
+    
+    // 消息数据
+    data.extend_from_slice(message);
+    
+    // 创建指令
+    let ix = Instruction {
+        program_id: ed25519_program::id(),
+        accounts: vec![], // ed25519程序不需要账户
+        data,
+    };
+    
+    // 调用程序验证签名
+    anchor_lang::solana_program::program::invoke(&ix, &[]).is_ok()
 }
 
 // 辅助函数和结构体
@@ -389,7 +513,4 @@ struct EscrowData {
     amount: u64,
     unlock_time: i64,
     required_signatures: u8,
-    buyer_signed: bool,
-    seller_signed: bool,
-    moderator_signed: bool,
 } 

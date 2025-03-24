@@ -22,9 +22,6 @@ pub struct Escrow {
     pub amount: u64,                       // 8 bytes
     pub unlock_time: i64,                  // 8 bytes
     pub required_signatures: u8,           // 1 byte
-    pub buyer_signed: bool,                // 1 byte
-    pub seller_signed: bool,               // 1 byte
-    pub moderator_signed: bool,            // 1 byte
     pub unique_id: [u8; 20],               // 20 bytes
 }
 
@@ -38,9 +35,6 @@ impl Escrow {
                           8 + // amount
                           8 + // unlock_time
                           1 + // required_signatures
-                          1 + // buyer_signed
-                          1 + // seller_signed
-                          1 + // moderator_signed
                           20; // unique_id
 
     pub fn get_escrow_address(
@@ -84,9 +78,6 @@ impl Default for Escrow {
             amount: 0,
             unlock_time: 0,
             required_signatures: 0,
-            buyer_signed: false,
-            seller_signed: false,
-            moderator_signed: false,
             unique_id: [0; 20],
         }
     }
