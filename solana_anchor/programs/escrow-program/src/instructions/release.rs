@@ -18,7 +18,6 @@ pub struct Release<'info> {
     
     #[account(
         mut,
-        constraint = escrow_account.state == EscrowState::Active @ EscrowError::AlreadyCompleted,
         constraint = escrow_account.is_initialized @ EscrowError::InvalidAccountData,
         seeds = [
             ESCROW_SEED_PREFIX,
@@ -89,7 +88,33 @@ pub fn handler(
     
     // 重要：提前获取escrow账户信息的克隆，避免后续借用冲突
     let escrow_account_info = ctx.accounts.escrow_account.to_account_info();
+    let actual_balance = match token_type {
+        TokenType::Sol => {
+            let rent = Rent::get()?;
+            let min_rent = rent.minimum_balance(Escrow::LEN);
+            escrow_account_info.lamports().saturating_sub(min_rent)
+        },
+        TokenType::Spl(_) => {
+            let escrow_token_account = ctx.accounts.escrow_token_account.as_ref()
+                .ok_or(error!(EscrowError::InvalidTokenAccount))?;
+            escrow_token_account.amount
+        }
+    };
     
+    // 确保实际余额至少等于存储的amount
+    require!(actual_balance >= amount, EscrowError::InsufficientFunds);
+    
+    // 验证支付目标和金额
+    require!(!payment_amounts.is_empty(), EscrowError::InvalidPaymentTargets);
+    require!(payment_amounts.len() <= MAX_PAYMENT_TARGETS, EscrowError::TooManyPaymentTargets);
+    
+    // 计算总支付金额
+    let mut total_payment: u64 = 0;
+    for amount_i in &payment_amounts {
+        total_payment = total_payment.saturating_add(*amount_i);
+        require!(total_payment <= amount, EscrowError::AmountOverflow);
+    }
+
     // 验证签名和时间锁
     let current_time = ctx.accounts.clock.unix_timestamp;
     let signatures_count = buyer_signed as u8 + seller_signed as u8 + moderator_signed as u8;
@@ -100,29 +125,6 @@ pub fn handler(
     } else if time_expired && !seller_signed {
         // 确保即使时间锁过期，卖家仍需签名
         return err!(EscrowError::InsufficientSignatures);
-    }
-    
-    // 验证支付目标
-    require!(!payment_amounts.is_empty(), EscrowError::InvalidPaymentTargets);
-    require!(payment_amounts.len() <= MAX_PAYMENT_TARGETS, 
-            EscrowError::TooManyPaymentTargets);
-    
-    // 计算总金额和验证
-    let mut total_payment: u64 = 0;
-    for amount in &payment_amounts {
-        total_payment = total_payment.saturating_add(*amount);
-        // 检查溢出
-        require!(total_payment >= *amount, EscrowError::AmountOverflow);
-    }
-    require!(total_payment == amount, EscrowError::PaymentAmountMismatch);
-
-    // 在任何资金转移前，确保PDA能够支付所需金额
-    if let TokenType::Sol = token_type {
-        let escrow_balance = escrow_account_info.lamports();
-        let rent = Rent::get()?;
-        let min_rent = rent.minimum_balance(Escrow::LEN);
-        let available_balance = escrow_balance.saturating_sub(min_rent);
-        require!(available_balance >= amount, EscrowError::InsufficientFunds);
     }
 
     // 创建签名种子
@@ -138,7 +140,6 @@ pub fn handler(
     
     // 现在可以安全修改escrow状态
     let escrow = &mut ctx.accounts.escrow_account;
-    escrow.state = EscrowState::Completed;
     escrow.amount = 0;
     escrow.buyer_signed = false;  // 重置签名状态，防止重用
     escrow.seller_signed = false;

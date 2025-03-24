@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, Mint};
+use anchor_spl::token::{self, Mint, Token, TokenAccount};
 use crate::{state::*, error::*};
 
 #[derive(Accounts)]
@@ -8,11 +8,15 @@ use crate::{state::*, error::*};
     unique_id: [u8; 20],
     required_signatures: u8,
     unlock_hours: u64,
-    token_type: TokenType
+    token_type: TokenType,
+    amount: u64
 )]
 pub struct Initialize<'info> {
     #[account(mut)]
     pub buyer: Signer<'info>,
+    
+    /// CHECK: 卖家账户，由客户端指定
+    pub seller: AccountInfo<'info>,
     
     #[account(
         init,
@@ -29,24 +33,29 @@ pub struct Initialize<'info> {
     )]
     pub escrow_account: Account<'info, Escrow>,
     
-    /// CHECK: 卖家账户，只读取
-    pub seller: AccountInfo<'info>,
-    
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
     pub clock: Sysvar<'info, Clock>,
     
-    // 根据token_type判断是否需要这些账户
+    // 以下账户仅SPL代币支付时需要
     pub token_program: Option<Program<'info, Token>>,
+    pub token_mint: Option<Account<'info, Mint>>,
     
-    #[account(mut)]
-    pub mint: Option<Account<'info, Mint>>,
+    #[account(
+        init_if_needed,
+        payer = buyer,
+        token::mint = token_mint,
+        token::authority = buyer,
+    )]
+    pub buyer_token_account: Option<Account<'info, TokenAccount>>,
     
-    /// CHECK: 将在handler中验证
-    #[account(mut)]
-    pub escrow_token_account: Option<AccountInfo<'info>>,
-    
-    pub associated_token_program: Option<Program<'info, anchor_spl::associated_token::AssociatedToken>>,
+    #[account(
+        init_if_needed,
+        payer = buyer,
+        token::mint = token_mint,
+        token::authority = escrow_account
+    )]
+    pub escrow_token_account: Option<Account<'info, TokenAccount>>,
 }
 
 pub fn handler(
@@ -54,54 +63,78 @@ pub fn handler(
     moderator: Option<Pubkey>,
     unique_id: [u8; 20],
     required_signatures: u8,
-    unlock_hours: u64, 
+    unlock_hours: u64,
     token_type: TokenType,
+    amount: u64
 ) -> Result<()> {
-    // 首先验证SPL代币账户,在token_type被移动前使用
-    if let TokenType::Spl(mint_key) = &token_type {
-        // 验证mint账户
-        let mint = ctx.accounts.mint.as_ref()
-            .ok_or(error!(EscrowError::InvalidTokenAccount))?;
-        require!(mint.key() == *mint_key, EscrowError::InvalidMint);
-        // ...代币账户初始化代码...
-    }
+    // 验证参数
+    require!(required_signatures > 0, EscrowError::NoSignature);
+    require!(required_signatures <= MAX_REQUIRED_SIGNATURES, EscrowError::TooManyRequiredSignatures);
+    require!(amount > 0, EscrowError::ZeroAmount);
     
-    // 检查参数有效性
-    require!(required_signatures > 0 && required_signatures <= MAX_REQUIRED_SIGNATURES, 
-        EscrowError::TooManyRequiredSignatures);
-    
-    // 获取当前时间戳
-    let current_time = ctx.accounts.clock.unix_timestamp;
-    
-    // 计算解锁时间戳
-    let unlock_time = current_time + (unlock_hours as i64) * 3600;
-    
-    // 初始化托管账户数据
+    // 初始化托管账户状态
     let escrow = &mut ctx.accounts.escrow_account;
     escrow.buyer = ctx.accounts.buyer.key();
     escrow.seller = ctx.accounts.seller.key();
     escrow.moderator = moderator;
-    escrow.amount = 0;
-    escrow.unlock_time = unlock_time;
+    escrow.token_type = token_type.clone();
+    escrow.amount = amount;
+    escrow.unlock_time = ctx.accounts.clock.unix_timestamp + (unlock_hours as i64 * 3600);
     escrow.required_signatures = required_signatures;
     escrow.buyer_signed = false;
     escrow.seller_signed = false;
     escrow.moderator_signed = false;
-    escrow.state = EscrowState::Active;
     escrow.is_initialized = true;
     escrow.unique_id = unique_id;
-    
-    msg!("托管账户已初始化");
-    msg!("买家: {}", escrow.buyer.to_string());
-    msg!("卖家: {}", escrow.seller.to_string());
-    if let Some(moderator) = escrow.moderator {
-        msg!("仲裁人: {}", moderator.to_string());
+
+    // 处理资金转移
+    match token_type {
+        TokenType::Sol => {
+            // 转移SOL到escrow账户
+            let ix = anchor_lang::solana_program::system_instruction::transfer(
+                &ctx.accounts.buyer.key(),
+                &ctx.accounts.escrow_account.key(),
+                amount,
+            );
+            
+            anchor_lang::solana_program::program::invoke(
+                &ix,
+                &[
+                    ctx.accounts.buyer.to_account_info(),
+                    ctx.accounts.escrow_account.to_account_info(),
+                    ctx.accounts.system_program.to_account_info(),
+                ],
+            )?;
+        },
+        TokenType::Spl(mint) => {
+            // 验证代币相关账户
+            let token_program = ctx.accounts.token_program.as_ref()
+                .ok_or(error!(EscrowError::InvalidTokenAccount))?;
+            let token_mint = ctx.accounts.token_mint.as_ref()
+                .ok_or(error!(EscrowError::InvalidTokenAccount))?;
+            let buyer_token_account = ctx.accounts.buyer_token_account.as_ref()
+                .ok_or(error!(EscrowError::InvalidTokenAccount))?;
+            let escrow_token_account = ctx.accounts.escrow_token_account.as_ref()
+                .ok_or(error!(EscrowError::InvalidTokenAccount))?;
+            
+            // 验证代币mint地址
+            require!(token_mint.key() == mint, EscrowError::InvalidTokenAccount);
+            
+            // 转移代币到escrow代币账户
+            let transfer_to_escrow_ix = anchor_spl::token::Transfer {
+                from: buyer_token_account.to_account_info(),
+                to: escrow_token_account.to_account_info(),
+                authority: ctx.accounts.buyer.to_account_info(),
+            };
+            
+            let escrow_transfer_ctx = CpiContext::new(
+                token_program.to_account_info(),
+                transfer_to_escrow_ix,
+            );
+            
+            token::transfer(escrow_transfer_ctx, amount)?;
+        }
     }
-    msg!("解锁时间: {}", escrow.unlock_time);
-    msg!("所需签名数: {}", escrow.required_signatures);
-    
-    // 这里会移动token_type
-    escrow.token_type = token_type;
     
     Ok(())
 } 

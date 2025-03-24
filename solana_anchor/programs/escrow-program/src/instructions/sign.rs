@@ -6,7 +6,6 @@ pub struct Sign<'info> {
     #[account(
         mut,
         constraint = escrow_account.is_initialized @ EscrowError::InvalidAccountData,
-        constraint = escrow_account.state == EscrowState::Active @ EscrowError::AlreadyCompleted,
         constraint = (
             (signer.key() == escrow_account.buyer && !escrow_account.buyer_signed) ||
             (signer.key() == escrow_account.seller && !escrow_account.seller_signed) ||

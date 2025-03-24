@@ -11,9 +11,6 @@ pub enum EscrowError {
     #[msg("金额不足")]
     InsufficientFunds,
     
-    #[msg("托管已完成")]
-    AlreadyCompleted,
-    
     #[msg("无效的账户数据")]
     InvalidAccountData,
     
@@ -29,9 +26,6 @@ pub enum EscrowError {
     #[msg("未满足所需签名数量")]
     InsufficientSignatures,
     
-    #[msg("时间锁定尚未到期")]
-    TimelockNotExpired,
-    
     #[msg("支付目标无效")]
     InvalidPaymentTargets,
     
@@ -44,9 +38,6 @@ pub enum EscrowError {
     #[msg("所需签名数量超过最大值")]
     TooManyRequiredSignatures,
     
-    #[msg("找不到托管账户")]
-    EscrowNotFound,
-    
-    #[msg("无效的代币铸币账户")]
-    InvalidMint,
+    #[msg("没有签名")]
+    NoSignature,
 } 

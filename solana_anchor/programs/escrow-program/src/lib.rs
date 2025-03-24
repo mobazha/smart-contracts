@@ -5,7 +5,7 @@ pub mod instructions;
 pub mod error;
 
 use state::*;
-use instructions::{initialize::*, deposit::*, sign::*, release::*};
+use instructions::{initialize::*, sign::*, release::*};
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
@@ -20,6 +20,7 @@ pub mod escrow_program {
         required_signatures: u8,
         unlock_hours: u64,
         token_type: TokenType,
+        amount: u64,
     ) -> Result<()> {
         instructions::initialize::handler(
             ctx,
@@ -28,11 +29,8 @@ pub mod escrow_program {
             required_signatures,
             unlock_hours,
             token_type,
+            amount,
         )
-    }
-
-    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
-        instructions::deposit::handler(ctx, amount)
     }
 
     pub fn sign(ctx: Context<Sign>) -> Result<()> {
