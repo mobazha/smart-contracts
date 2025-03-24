@@ -19,5 +19,3 @@ default = []
 [dependencies]
 anchor-lang = { version = "=0.31.0", features = ["init-if-needed"] }
 anchor-spl = "=0.31.0"
-# 如果你需要直接依赖solana-program，使用兼容版本
-# solana-program = "=1.18.11"

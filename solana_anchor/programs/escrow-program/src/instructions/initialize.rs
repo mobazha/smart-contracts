@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Token, TokenAccount, Mint};
+use anchor_spl::token::{Token, Mint};
 use crate::{state::*, error::*};
 
 #[derive(Accounts)]

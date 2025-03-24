@@ -2,17 +2,6 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use crate::{state::*, error::*};
 
-// 简化辅助函数
-fn is_valid_token_account<'info>(token_type: &TokenType, account: Option<&Account<'info, TokenAccount>>) -> bool {
-    if let TokenType::Spl(mint) = token_type {
-        if let Some(acc) = account {
-            return acc.mint == *mint;
-        }
-        return false;
-    }
-    true
-}
-
 #[derive(Accounts)]
 pub struct Deposit<'info> {
     #[account(mut)]

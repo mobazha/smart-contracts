@@ -4,8 +4,8 @@ pub mod state;
 pub mod instructions;
 pub mod error;
 
-use instructions::*;
 use state::*;
+use instructions::{initialize::*, deposit::*, sign::*, release::*};
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
@@ -20,7 +20,6 @@ pub mod escrow_program {
         required_signatures: u8,
         unlock_hours: u64,
         token_type: TokenType,
-        bump: u8,
     ) -> Result<()> {
         instructions::initialize::handler(
             ctx,
