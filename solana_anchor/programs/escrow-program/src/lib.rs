@@ -5,8 +5,9 @@ pub mod instructions;
 pub mod error;
 
 use instructions::*;
+use state::*;
 
-declare_id!("你的程序ID");
+declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
 #[program]
 pub mod escrow_program {
@@ -18,7 +19,8 @@ pub mod escrow_program {
         unique_id: [u8; 20],
         required_signatures: u8,
         unlock_hours: u64,
-        token_type: state::TokenType,
+        token_type: TokenType,
+        bump: u8,
     ) -> Result<()> {
         instructions::initialize::handler(
             ctx,
@@ -40,7 +42,7 @@ pub mod escrow_program {
 
     pub fn release(
         ctx: Context<Release>,
-        payment_targets: Vec<state::PaymentTarget>,
+        payment_targets: Vec<PaymentTarget>,
     ) -> Result<()> {
         instructions::release::handler(ctx, payment_targets)
     }

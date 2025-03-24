@@ -6,7 +6,11 @@ use crate::{state::*, error::*};
 #[instruction(payment_targets: Vec<PaymentTarget>)]
 pub struct Release<'info> {
     #[account(
-        constraint = (initiator.key() == escrow_account.buyer || initiator.key() == escrow_account.seller) @ EscrowError::InvalidSigner
+        constraint = (initiator.key() == escrow_account.buyer || 
+                     initiator.key() == escrow_account.seller || 
+                     (escrow_account.moderator.is_some() && 
+                      initiator.key() == escrow_account.moderator.unwrap())) 
+                      @ EscrowError::InvalidSigner
     )]
     pub initiator: Signer<'info>,
     
@@ -26,165 +30,169 @@ pub struct Release<'info> {
     pub escrow_account: Account<'info, Escrow>,
     
     pub clock: Sysvar<'info, Clock>,
+    pub system_program: Program<'info, System>,
     
     // SOL支付或SPL代币支付需要的额外账户
     pub token_program: Option<Program<'info, Token>>,
     
     #[account(
         mut,
-        token::authority = escrow_account
+        token::authority = escrow_account,
+        constraint = {
+            match escrow_account.token_type {
+                TokenType::Spl(_) => true,
+                _ => true
+            }
+        }
     )]
     pub escrow_token_account: Option<Account<'info, TokenAccount>>,
     
     /// CHECK: 买家账户，用于接收SPL代币账户的租金
-    #[account(mut)]
-    pub buyer: Option<AccountInfo<'info>>,
+    #[account(
+        mut,
+        constraint = buyer.key() == escrow_account.buyer
+    )]
+    pub buyer: AccountInfo<'info>,
     
     // 接收方账户需要在指令执行时动态检查，因为数量不固定
-    /// CHECK: 所有接收方账户会在指令中进行验证
-    pub remaining_accounts: Option<Vec<AccountInfo<'info>>>,
+    /// CHECK: 接收方账户会在指令中验证
+    #[account(mut)]
+    pub recipient: AccountInfo<'info>,
 }
 
 pub fn handler(
     ctx: Context<Release>,
     payment_targets: Vec<PaymentTarget>,
 ) -> Result<()> {
-    // 验证付款目标数量
-    require!(
-        !payment_targets.is_empty(),
-        EscrowError::EmptyPaymentTargets
-    );
-    require!(
-        payment_targets.len() <= MAX_PAYMENT_TARGETS,
-        EscrowError::TooManyPaymentTargets
-    );
+    // 首先获取所有需要的数据，避免后续借用冲突
+    let buyer = ctx.accounts.escrow_account.buyer;
+    let seller = ctx.accounts.escrow_account.seller;
+    let moderator_opt = ctx.accounts.escrow_account.moderator;
+    let unique_id = ctx.accounts.escrow_account.unique_id;
+    let bump = ctx.bumps.escrow_account;
+    let token_type = ctx.accounts.escrow_account.token_type.clone();
+    let amount = ctx.accounts.escrow_account.amount;
+    let unlock_time = ctx.accounts.escrow_account.unlock_time;
+    let required_signatures = ctx.accounts.escrow_account.required_signatures;
+    let buyer_signed = ctx.accounts.escrow_account.buyer_signed;
+    let seller_signed = ctx.accounts.escrow_account.seller_signed;
+    let moderator_signed = ctx.accounts.escrow_account.moderator_signed;
     
-    let escrow = &mut ctx.accounts.escrow_account;
+    // 重要：提前获取escrow账户信息的克隆，避免后续借用冲突
+    let escrow_account_info = ctx.accounts.escrow_account.to_account_info();
     
-    // 检查签名数量
-    let signed_count = escrow.buyer_signed as u8 
-        + escrow.seller_signed as u8 
-        + (escrow.moderator.is_some() && escrow.moderator_signed) as u8;
+    // 验证签名和时间锁
+    let current_time = ctx.accounts.clock.unix_timestamp;
+    let signatures_count = buyer_signed as u8 + seller_signed as u8 + moderator_signed as u8;
+    let time_expired = current_time >= unlock_time;
     
-    // 检查签名数量或时间锁
-    let time_lock_passed = escrow.unlock_time > 0 && 
-        ctx.accounts.clock.unix_timestamp >= escrow.unlock_time;
-    
-    if signed_count < escrow.required_signatures {
-        // 只有设置了时间锁时才检查
-        if !time_lock_passed {
-            return err!(EscrowError::InsufficientSignatures);
-        }
-        // 超过时间锁后，只需要卖家签名
-        if !escrow.seller_signed {
-            return err!(EscrowError::InsufficientSignatures);
-        }
+    if !time_expired && signatures_count < required_signatures {
+        return err!(EscrowError::InsufficientSignatures);
     }
     
-    // 验证总金额
-    let total_amount: u64 = payment_targets.iter()
-        .map(|target| target.amount)
-        .sum();
-    require!(
-        total_amount <= escrow.amount,
-        EscrowError::AmountOverflow
-    );
+    // 验证支付目标
+    require!(!payment_targets.is_empty(), EscrowError::InvalidPaymentTargets);
+    require!(payment_targets.len() <= MAX_PAYMENT_TARGETS, 
+            EscrowError::TooManyPaymentTargets);
     
-    // 根据代币类型处理资金释放
-    match escrow.token_type {
+    // 计算总金额和验证
+    let mut total_payment: u64 = 0;
+    for target in &payment_targets {
+        total_payment = total_payment.checked_add(target.amount)
+            .ok_or(error!(EscrowError::AmountOverflow))?;
+    }
+    require!(total_payment == amount, EscrowError::PaymentAmountMismatch);
+
+    // 创建签名种子
+    let escrow_signer_seeds = &[
+        ESCROW_SEED_PREFIX,
+        buyer.as_ref(),
+        seller.as_ref(),
+        moderator_opt.as_ref().map_or(&[], |m| m.as_ref()),
+        &unique_id,
+        &[bump]
+    ];
+    let escrow_seeds = &[&escrow_signer_seeds[..]];
+    
+    // 现在可以安全修改escrow状态
+    let escrow = &mut ctx.accounts.escrow_account;
+    escrow.state = EscrowState::Completed;
+    escrow.amount = 0;
+    
+    // 执行资金转移
+    match token_type {
         TokenType::Sol => {
-            // 处理SOL释放
-            for (i, target) in payment_targets.iter().enumerate() {
-                if let Some(remaining_accounts) = &ctx.accounts.remaining_accounts {
-                    if i < remaining_accounts.len() {
-                        let recipient = &remaining_accounts[i];
-                        **escrow_account.to_account_info().try_borrow_mut_lamports()? -= target.amount;
-                        **recipient.try_borrow_mut_lamports()? += target.amount;
-                    }
-                }
-            }
-            
-            // 关闭账户:将剩余的租金返还给买家
-            if let Some(buyer) = &ctx.accounts.buyer {
-                let remaining_lamports = escrow_account.to_account_info().lamports();
-                **escrow_account.to_account_info().try_borrow_mut_lamports()? = 0;
-                **buyer.try_borrow_mut_lamports()? += remaining_lamports;
-            }
-        },
-        TokenType::Spl(_) => {
-            // 处理SPL代币释放
-            if let (Some(escrow_token_account), Some(token_program), Some(buyer), Some(remaining_accounts)) = (
-                &ctx.accounts.escrow_token_account,
-                &ctx.accounts.token_program,
-                &ctx.accounts.buyer,
-                &ctx.accounts.remaining_accounts,
-            ) {
-                // 转移代币给接收方
-                for (i, target) in payment_targets.iter().enumerate() {
-                    if i < remaining_accounts.len() {
-                        let recipient_token_account = &remaining_accounts[i];
-                        
-                        let seeds = &[
-                            ESCROW_SEED_PREFIX,
-                            escrow.buyer.as_ref(),
-                            escrow.seller.as_ref(),
-                            escrow.moderator.as_ref().map_or(&[], |m| m.as_ref()),
-                            &escrow.unique_id[..],
-                            &[ctx.bumps.escrow_account],
-                        ];
-                        
-                        let signer = &[&seeds[..]];
-                        
-                        // 转移代币
-                        let cpi_accounts = Transfer {
-                            from: escrow_token_account.to_account_info(),
-                            to: recipient_token_account.to_account_info(),
-                            authority: escrow_account.to_account_info(),
-                        };
-                        
-                        let cpi_context = CpiContext::new_with_signer(
-                            token_program.to_account_info(),
-                            cpi_accounts,
-                            signer,
-                        );
-                        
-                        token::transfer(cpi_context, target.amount)?;
-                    }
-                }
+            // 处理SOL转账
+            for target in &payment_targets {
+                let recipient_info = &ctx.accounts.recipient;
+                require!(recipient_info.key() == target.recipient, 
+                         EscrowError::InvalidPaymentTargets);
                 
-                // 关闭代币账户，返还租金
-                let seeds = &[
-                    ESCROW_SEED_PREFIX,
-                    escrow.buyer.as_ref(),
-                    escrow.seller.as_ref(),
-                    escrow.moderator.as_ref().map_or(&[], |m| m.as_ref()),
-                    &escrow.unique_id[..],
-                    &[ctx.bumps.escrow_account],
-                ];
-                
-                let signer = &[&seeds[..]];
-                
-                let cpi_accounts = CloseAccount {
-                    account: escrow_token_account.to_account_info(),
-                    destination: buyer.to_account_info(),
-                    authority: escrow_account.to_account_info(),
-                };
-                
-                let cpi_context = CpiContext::new_with_signer(
-                    token_program.to_account_info(),
-                    cpi_accounts,
-                    signer,
+                // 转出SOL
+                let transfer_ix = anchor_lang::solana_program::system_instruction::transfer(
+                    &escrow.key(),
+                    &target.recipient,
+                    target.amount,
                 );
                 
-                token::close_account(cpi_context)?;
+                anchor_lang::solana_program::program::invoke_signed(
+                    &transfer_ix,
+                    &[
+                        escrow_account_info.clone(),  // 使用克隆的账户信息
+                        recipient_info.clone(),
+                        ctx.accounts.system_program.to_account_info(),
+                    ],
+                    escrow_seeds,
+                )?;
             }
+        },
+        TokenType::Spl(mint) => {
+            // 处理SPL代币转账
+            let token_program = ctx.accounts.token_program.as_ref()
+                .ok_or(error!(EscrowError::InvalidTokenAccount))?;
+            let escrow_token_account = ctx.accounts.escrow_token_account.as_ref()
+                .ok_or(error!(EscrowError::InvalidTokenAccount))?;
+            
+            for target in &payment_targets {
+                // 在实际应用中，您需要对每个接收者的代币账户进行验证
+                // 这里简化处理，假设接收者账户已正确传入
+                let recipient_info = &ctx.accounts.recipient;
+                require!(recipient_info.key() == target.recipient, 
+                         EscrowError::InvalidPaymentTargets);
+                
+                // 转出SPL代币
+                let transfer_accounts = Transfer {
+                    from: escrow_token_account.to_account_info(),
+                    to: recipient_info.clone(),
+                    authority: ctx.accounts.escrow_account.to_account_info(),
+                };
+                
+                let cpi_ctx = CpiContext::new_with_signer(
+                    token_program.to_account_info(),
+                    transfer_accounts,
+                    escrow_seeds,
+                );
+                
+                token::transfer(cpi_ctx, target.amount)?;
+            }
+            
+            // 关闭托管代币账户，将剩余租金退还给买家
+            let close_accounts = CloseAccount {
+                account: escrow_token_account.to_account_info(),
+                destination: ctx.accounts.buyer.to_account_info(),
+                authority: ctx.accounts.escrow_account.to_account_info(),
+            };
+            
+            let cpi_ctx = CpiContext::new_with_signer(
+                token_program.to_account_info(),
+                close_accounts,
+                escrow_seeds,
+            );
+            
+            token::close_account(cpi_ctx)?;
         }
     }
     
-    // 更新托管状态
-    escrow.state = EscrowState::Completed;
-    
-    msg!("资金释放由: {:?} 发起", ctx.accounts.initiator.key());
-    
+    msg!("托管资金释放完成");
     Ok(())
 } 

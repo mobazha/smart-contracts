@@ -2,36 +2,51 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum EscrowError {
-    #[msg("Invalid instruction")]
-    InvalidInstruction,
-    
-    #[msg("Escrow already completed")]
-    AlreadyCompleted,
-    
-    #[msg("Insufficient signatures")]
-    InsufficientSignatures,
-    
-    #[msg("Invalid signer")]
-    InvalidSigner,
-    
-    #[msg("Invalid account data")]
-    InvalidAccountData,
-    
-    #[msg("Amount overflow")]
-    AmountOverflow,
-    
-    #[msg("Invalid token account")]
-    InvalidTokenAccount,
-    
-    #[msg("Amount cannot be zero")]
+    #[msg("金额不能为零")]
     ZeroAmount,
     
-    #[msg("Payment targets list is empty")]
-    EmptyPaymentTargets,
+    #[msg("金额超出范围")]
+    AmountOverflow,
     
-    #[msg("Too many payment targets")]
+    #[msg("金额不足")]
+    InsufficientFunds,
+    
+    #[msg("托管已完成")]
+    AlreadyCompleted,
+    
+    #[msg("无效的账户数据")]
+    InvalidAccountData,
+    
+    #[msg("无效的代币账户")]
+    InvalidTokenAccount,
+    
+    #[msg("无效的签名者")]
+    InvalidSigner,
+    
+    #[msg("账户已经被签名")]
+    AlreadySigned,
+    
+    #[msg("未满足所需签名数量")]
+    InsufficientSignatures,
+    
+    #[msg("时间锁定尚未到期")]
+    TimelockNotExpired,
+    
+    #[msg("支付目标无效")]
+    InvalidPaymentTargets,
+    
+    #[msg("支付目标总额与托管金额不匹配")]
+    PaymentAmountMismatch,
+    
+    #[msg("超出最大支付目标数量")]
     TooManyPaymentTargets,
     
-    #[msg("Too many required signatures")]
+    #[msg("所需签名数量超过最大值")]
     TooManyRequiredSignatures,
+    
+    #[msg("找不到托管账户")]
+    EscrowNotFound,
+    
+    #[msg("无效的代币铸币账户")]
+    InvalidMint,
 } 

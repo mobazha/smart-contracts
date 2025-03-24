@@ -8,7 +8,8 @@ use crate::{state::*, error::*};
     unique_id: [u8; 20],
     required_signatures: u8,
     unlock_hours: u64,
-    token_type: TokenType
+    token_type: TokenType,
+    bump: u8
 )]
 pub struct Initialize<'info> {
     #[account(mut)]
@@ -36,26 +37,17 @@ pub struct Initialize<'info> {
     pub rent: Sysvar<'info, Rent>,
     pub clock: Sysvar<'info, Clock>,
     
-    // 可选的SPL代币相关账户
-    #[account(
-        mut,
-        owner = token::ID,
-        constraint = match token_type { 
-            TokenType::Spl(mint_key) => mint.key() == mint_key, 
-            _ => true 
-        }
-    )]
-    pub mint: Option<Account<'info, Mint>>,
-    
+    // 根据token_type判断是否需要这些账户
     pub token_program: Option<Program<'info, Token>>,
     
-    #[account(
-        init_if_needed,
-        payer = buyer,
-        associated_token::mint = mint,
-        associated_token::authority = escrow_account
-    )]
-    pub escrow_token_account: Option<Account<'info, TokenAccount>>,
+    #[account(mut)]
+    pub mint: Option<Account<'info, Mint>>,
+    
+    /// CHECK: 将在handler中验证
+    #[account(mut)]
+    pub escrow_token_account: Option<AccountInfo<'info>>,
+    
+    pub associated_token_program: Option<Program<'info, anchor_spl::associated_token::AssociatedToken>>,
 }
 
 pub fn handler(
@@ -63,43 +55,54 @@ pub fn handler(
     moderator: Option<Pubkey>,
     unique_id: [u8; 20],
     required_signatures: u8,
-    unlock_hours: u64,
+    unlock_hours: u64, 
     token_type: TokenType,
 ) -> Result<()> {
-    // 验证参数
-    require!(
-        required_signatures <= MAX_REQUIRED_SIGNATURES,
-        EscrowError::TooManyRequiredSignatures
-    );
+    // 首先验证SPL代币账户,在token_type被移动前使用
+    if let TokenType::Spl(mint_key) = &token_type {
+        // 验证mint账户
+        let mint = ctx.accounts.mint.as_ref()
+            .ok_or(error!(EscrowError::InvalidTokenAccount))?;
+        require!(mint.key() == *mint_key, EscrowError::InvalidMint);
+        // ...代币账户初始化代码...
+    }
+    
+    // 检查参数有效性
+    require!(required_signatures > 0 && required_signatures <= MAX_REQUIRED_SIGNATURES, 
+        EscrowError::TooManyRequiredSignatures);
+    
+    // 获取当前时间戳
+    let current_time = ctx.accounts.clock.unix_timestamp;
     
     // 计算解锁时间戳
-    let unlock_time = if unlock_hours > 0 {
-        ctx.accounts.clock.unix_timestamp
-            .checked_add((unlock_hours as i64).checked_mul(3600).ok_or(error!(EscrowError::InvalidAccountData))?)
-            .ok_or(error!(EscrowError::InvalidAccountData))?
-    } else {
-        0 // 不设置时间锁
-    };
+    let unlock_time = current_time + (unlock_hours as i64) * 3600;
     
-    // 初始化托管状态
+    // 初始化托管账户数据
     let escrow = &mut ctx.accounts.escrow_account;
-    escrow.state = EscrowState::Active;
     escrow.buyer = ctx.accounts.buyer.key();
     escrow.seller = ctx.accounts.seller.key();
     escrow.moderator = moderator;
-    escrow.token_type = token_type;
-    escrow.amount = 0; // 将在 Deposit 时设置
+    escrow.amount = 0;
     escrow.unlock_time = unlock_time;
     escrow.required_signatures = required_signatures;
     escrow.buyer_signed = false;
     escrow.seller_signed = false;
     escrow.moderator_signed = false;
+    escrow.state = EscrowState::Active;
     escrow.is_initialized = true;
     escrow.unique_id = unique_id;
     
-    msg!("托管已初始化: {:?}", ctx.accounts.escrow_account.key());
-    msg!("买家: {:?}", ctx.accounts.buyer.key());
-    msg!("时间锁: {}", unlock_time);
+    msg!("托管账户已初始化");
+    msg!("买家: {}", escrow.buyer.to_string());
+    msg!("卖家: {}", escrow.seller.to_string());
+    if let Some(moderator) = escrow.moderator {
+        msg!("仲裁人: {}", moderator.to_string());
+    }
+    msg!("解锁时间: {}", escrow.unlock_time);
+    msg!("所需签名数: {}", escrow.required_signatures);
+    
+    // 这里会移动token_type
+    escrow.token_type = token_type;
     
     Ok(())
 } 

@@ -43,7 +43,20 @@ pub struct Escrow {
 }
 
 impl Escrow {
-    pub const LEN: usize = 256;
+    pub const LEN: usize = 8 + // 判别器
+                          1 + // state
+                          32 + // buyer
+                          32 + // seller
+                          33 + // moderator (Option<Pubkey>)
+                          33 + // token_type
+                          8 + // amount
+                          8 + // unlock_time
+                          1 + // required_signatures
+                          1 + // buyer_signed
+                          1 + // seller_signed
+                          1 + // moderator_signed
+                          1 + // is_initialized
+                          20; // unique_id
 
     pub fn get_escrow_address(
         program_id: &Pubkey,

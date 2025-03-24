@@ -17,19 +17,7 @@ cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]
-anchor-lang = "0.31.0"
-anchor-spl = "0.31.0"
-
-# 使用原项目的solana版本
-solana-program = "2.2.0"
-
-# 添加原项目所需的其他依赖
-borsh = "0.10.3"
-borsh-derive = "0.10.3"
-thiserror = "2.0"
-arrayref = "0.3.9"
-spl-token = "7.0.0"
-
-# 可选依赖(Anchor可能已经包含了这些功能)
-solana-program-pack = "2.2.0" 
-solana-pubkey = { version = "2.2.0", features = ["bytemuck"] } 
+anchor-lang = { version = "=0.31.0", features = ["init-if-needed"] }
+anchor-spl = "=0.31.0"
+# 如果你需要直接依赖solana-program，使用兼容版本
+# solana-program = "=1.18.11"
