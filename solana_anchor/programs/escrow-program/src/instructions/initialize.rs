@@ -8,8 +8,7 @@ use crate::{state::*, error::*};
     unique_id: [u8; 20],
     required_signatures: u8,
     unlock_hours: u64,
-    token_type: TokenType,
-    bump: u8
+    token_type: TokenType
 )]
 pub struct Initialize<'info> {
     #[account(mut)]

@@ -1,9 +1,11 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, CloseAccount, Transfer};
 use crate::{state::*, error::*};
+use spl_token::state::Account as SplTokenAccount;
+use spl_token::solana_program::program_pack::Pack;
 
 #[derive(Accounts)]
-#[instruction(payment_targets: Vec<PaymentTarget>)]
+#[instruction(payment_amounts: Vec<u64>)]
 pub struct Release<'info> {
     #[account(
         constraint = (initiator.key() == escrow_account.buyer || 
@@ -37,13 +39,7 @@ pub struct Release<'info> {
     
     #[account(
         mut,
-        token::authority = escrow_account,
-        constraint = {
-            match escrow_account.token_type {
-                TokenType::Spl(_) => true,
-                _ => true
-            }
-        }
+        token::authority = escrow_account
     )]
     pub escrow_token_account: Option<Account<'info, TokenAccount>>,
     
@@ -57,12 +53,25 @@ pub struct Release<'info> {
     // 接收方账户需要在指令执行时动态检查，因为数量不固定
     /// CHECK: 接收方账户会在指令中验证
     #[account(mut)]
-    pub recipient: AccountInfo<'info>,
+    pub recipients: UncheckedAccount<'info>,
+    
+    // 额外的接收方账户，最多支持4个接收方
+    /// CHECK: 第二个接收方账户，如果有的话
+    #[account(mut)]
+    pub recipient2: Option<AccountInfo<'info>>,
+    
+    /// CHECK: 第三个接收方账户，如果有的话
+    #[account(mut)]
+    pub recipient3: Option<AccountInfo<'info>>,
+    
+    /// CHECK: 第四个接收方账户，如果有的话
+    #[account(mut)]
+    pub recipient4: Option<AccountInfo<'info>>,
 }
 
 pub fn handler(
     ctx: Context<Release>,
-    payment_targets: Vec<PaymentTarget>,
+    payment_amounts: Vec<u64>,
 ) -> Result<()> {
     // 首先获取所有需要的数据，避免后续借用冲突
     let buyer = ctx.accounts.escrow_account.buyer;
@@ -88,17 +97,20 @@ pub fn handler(
     
     if !time_expired && signatures_count < required_signatures {
         return err!(EscrowError::InsufficientSignatures);
+    } else if time_expired && !seller_signed {
+        // 确保即使时间锁过期，卖家仍需签名
+        return err!(EscrowError::InsufficientSignatures);
     }
     
     // 验证支付目标
-    require!(!payment_targets.is_empty(), EscrowError::InvalidPaymentTargets);
-    require!(payment_targets.len() <= MAX_PAYMENT_TARGETS, 
+    require!(!payment_amounts.is_empty(), EscrowError::InvalidPaymentTargets);
+    require!(payment_amounts.len() <= MAX_PAYMENT_TARGETS, 
             EscrowError::TooManyPaymentTargets);
     
     // 计算总金额和验证
     let mut total_payment: u64 = 0;
-    for target in &payment_targets {
-        total_payment = total_payment.checked_add(target.amount)
+    for amount in &payment_amounts {
+        total_payment = total_payment.checked_add(*amount)
             .ok_or(error!(EscrowError::AmountOverflow))?;
     }
     require!(total_payment == amount, EscrowError::PaymentAmountMismatch);
@@ -123,22 +135,26 @@ pub fn handler(
     match token_type {
         TokenType::Sol => {
             // 处理SOL转账
-            for target in &payment_targets {
-                let recipient_info = &ctx.accounts.recipient;
-                require!(recipient_info.key() == target.recipient, 
-                         EscrowError::InvalidPaymentTargets);
+            for (i, amount) in payment_amounts.iter().enumerate() {
+                let recipient_info = match i {
+                    0 => ctx.accounts.recipients.to_account_info(),
+                    1 if ctx.accounts.recipient2.is_some() => ctx.accounts.recipient2.as_ref().unwrap().to_account_info(),
+                    2 if ctx.accounts.recipient3.is_some() => ctx.accounts.recipient3.as_ref().unwrap().to_account_info(),
+                    3 if ctx.accounts.recipient4.is_some() => ctx.accounts.recipient4.as_ref().unwrap().to_account_info(),
+                    _ => return err!(EscrowError::InvalidPaymentTargets),
+                };
                 
                 // 转出SOL
                 let transfer_ix = anchor_lang::solana_program::system_instruction::transfer(
                     &escrow.key(),
-                    &target.recipient,
-                    target.amount,
+                    &recipient_info.key(),
+                    *amount,
                 );
                 
                 anchor_lang::solana_program::program::invoke_signed(
                     &transfer_ix,
                     &[
-                        escrow_account_info.clone(),  // 使用克隆的账户信息
+                        escrow_account_info.clone(),
                         recipient_info.clone(),
                         ctx.accounts.system_program.to_account_info(),
                     ],
@@ -153,17 +169,23 @@ pub fn handler(
             let escrow_token_account = ctx.accounts.escrow_token_account.as_ref()
                 .ok_or(error!(EscrowError::InvalidTokenAccount))?;
             
-            for target in &payment_targets {
-                // 在实际应用中，您需要对每个接收者的代币账户进行验证
-                // 这里简化处理，假设接收者账户已正确传入
-                let recipient_info = &ctx.accounts.recipient;
-                require!(recipient_info.key() == target.recipient, 
-                         EscrowError::InvalidPaymentTargets);
+            for (i, amount) in payment_amounts.iter().enumerate() {
+                let recipient_info = match i {
+                    0 => ctx.accounts.recipients.to_account_info(),
+                    1 if ctx.accounts.recipient2.is_some() => ctx.accounts.recipient2.as_ref().unwrap().to_account_info(),
+                    2 if ctx.accounts.recipient3.is_some() => ctx.accounts.recipient3.as_ref().unwrap().to_account_info(),
+                    3 if ctx.accounts.recipient4.is_some() => ctx.accounts.recipient4.as_ref().unwrap().to_account_info(),
+                    _ => return err!(EscrowError::InvalidPaymentTargets),
+                };
+                
+                // 直接解析代币账户
+                let recipient_token_account = SplTokenAccount::unpack(&recipient_info.try_borrow_data()?)?;
+                require!(recipient_token_account.mint == mint, EscrowError::InvalidTokenAccount);
                 
                 // 转出SPL代币
                 let transfer_accounts = Transfer {
                     from: escrow_token_account.to_account_info(),
-                    to: recipient_info.clone(),
+                    to: recipient_info,
                     authority: ctx.accounts.escrow_account.to_account_info(),
                 };
                 
@@ -173,7 +195,7 @@ pub fn handler(
                     escrow_seeds,
                 );
                 
-                token::transfer(cpi_ctx, target.amount)?;
+                token::transfer(cpi_ctx, *amount)?;
             }
             
             // 关闭托管代币账户，将剩余租金退还给买家

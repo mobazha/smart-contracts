@@ -41,8 +41,8 @@ pub mod escrow_program {
 
     pub fn release(
         ctx: Context<Release>,
-        payment_targets: Vec<PaymentTarget>,
+        payment_amounts: Vec<u64>,
     ) -> Result<()> {
-        instructions::release::handler(ctx, payment_targets)
+        instructions::release::handler(ctx, payment_amounts)
     }
 } 

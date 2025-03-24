@@ -13,12 +13,6 @@ pub enum EscrowState {
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
-pub struct PaymentTarget {
-    pub recipient: Pubkey,
-    pub amount: u64,
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub enum TokenType {
     Sol,
     Spl(Pubkey),  // Pubkey 是代币的 mint 地址
