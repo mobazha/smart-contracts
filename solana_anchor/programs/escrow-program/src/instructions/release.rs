@@ -321,13 +321,6 @@ fn verify_signature(
     if signature.len() != 64 {
         return false;
     }
-
-    // 在测试环境中，简化验证
-    #[cfg(not(feature = "production"))]
-    {
-        msg!("测试环境：跳过签名验证");
-        return true;
-    }
     
     // 创建 ed25519 指令数据
     let mut instruction_data = Vec::with_capacity(1 + signature.len() + message.len() + 32);

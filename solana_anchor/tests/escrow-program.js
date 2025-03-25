@@ -8,6 +8,8 @@ import * as nobleSecp256k1 from '@noble/secp256k1';
 import { hmac } from '@noble/hashes/hmac';
 import { sha256 } from '@noble/hashes/sha256';
 import nacl from 'tweetnacl';
+import fs from 'fs';
+import config from '../devnet-config.js';
 
 const { assert, expect } = chai;
 const BN = anchor.BN || (anchor.default && anchor.default.BN);
@@ -21,18 +23,21 @@ nobleSecp256k1.etc.hmacSha256Sync = (key, ...messages) => {
 
 describe("escrow-program 测试", () => {
   // 配置测试环境
-  const provider = anchor.AnchorProvider.env();
+  const provider = new anchor.AnchorProvider(
+    new anchor.web3.Connection(config.connection),
+    anchor.Wallet.local(),
+    { commitment: "confirmed" }
+  );
   anchor.setProvider(provider);
   const program = anchor.workspace.EscrowProgram;
   
-  // 测试账户
-  const buyer = Keypair.generate();
-  const seller = Keypair.generate();
-  const moderator = Keypair.generate();
+  // 根据环境创建测试账户
+  let buyer, seller, moderator;
+  let mainAccount;
   
-  // 测试数据
+  // 测试数据 - 使用配置中的金额
   const uniqueId = Buffer.from(randomBytes(20));
-  const escrowAmount = 1 * LAMPORTS_PER_SOL;
+  const escrowAmount = config.testAmounts.escrow;
   const unlockHours = 24;
   const requiredSignatures = 2;
   
@@ -40,24 +45,103 @@ describe("escrow-program 测试", () => {
   let mintAuthority;
   let tokenMint;
   let buyerTokenAccount;
-  let escrowTokenAccount;
   let recipientTokenAccount;
   
   // 托管账户信息
   let escrowAccount;
-  let escrowBump;
   
+  // 从主账户给各方充值
+  const transferToAccount = async (toKeypair, amount) => {
+    await provider.connection.sendTransaction(
+      new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: mainAccount.publicKey,
+          toPubkey: toKeypair.publicKey,
+          lamports: amount * LAMPORTS_PER_SOL,
+        })
+      ),
+      [mainAccount]
+    );
+    console.log(`已向 ${toKeypair.publicKey.toString()} 转账 ${amount} SOL`);
+  };
+  
+  // 初始化测试环境
   before(async () => {
-    // 为测试账户充值资金
-    const airdropPromises = [buyer, seller, moderator].map(async (keypair) => {
-      const signature = await provider.connection.requestAirdrop(
-        keypair.publicKey, 
-        10 * LAMPORTS_PER_SOL
-      );
-      return provider.connection.confirmTransaction(signature);
-    });
+    if (config.useRandomAccounts) {
+      // 本地环境：使用随机生成的账户
+      buyer = Keypair.generate();
+      seller = Keypair.generate();
+      moderator = Keypair.generate();
+      console.log("使用随机生成的测试账户");
+      
+      // 为测试账户充值
+      const airdropPromises = [buyer, seller, moderator].map(async (keypair) => {
+        const signature = await provider.connection.requestAirdrop(
+          keypair.publicKey, 
+          10 * LAMPORTS_PER_SOL
+        );
+        return provider.connection.confirmTransaction(signature);
+      });
+      
+      await Promise.all(airdropPromises);
+      console.log("已为测试账户充值资金");
+    } else {
+      // Devnet 环境：使用预先充值的账户
+      try {
+        // 加载主账户
+        mainAccount = anchor.web3.Keypair.fromSecretKey(
+          Uint8Array.from(JSON.parse(fs.readFileSync(config.keypairPaths.main, 'utf-8')))
+        );
+        
+          buyer = anchor.web3.Keypair.fromSecretKey(
+            Uint8Array.from(JSON.parse(fs.readFileSync(config.keypairPaths.buyer, 'utf-8')))
+          );
+          seller = anchor.web3.Keypair.fromSecretKey(
+            Uint8Array.from(JSON.parse(fs.readFileSync(config.keypairPaths.seller, 'utf-8')))
+          );
+          moderator = anchor.web3.Keypair.fromSecretKey(
+            Uint8Array.from(JSON.parse(fs.readFileSync(config.keypairPaths.moderator, 'utf-8')))
+          );
+          console.log("使用预先充值的测试账户");
+        
+        // 打印各方地址
+        console.log("主账户地址:", mainAccount.publicKey.toString());
+        console.log("买家地址:", buyer.publicKey.toString());
+        console.log("卖家地址:", seller.publicKey.toString());
+        console.log("仲裁人地址:", moderator.publicKey.toString());
+        
+        // 执行转账
+        await transferToAccount(buyer, 3);
+        await transferToAccount(seller, 1);
+        await transferToAccount(moderator, 1);
+      } catch (e) {
+        console.error("无法加载主账户:", e);
+        console.log("回退到随机生成的账户");
+        buyer = Keypair.generate();
+        seller = Keypair.generate();
+        moderator = Keypair.generate();
+        
+        // 为随机账户充值
+        const airdropPromises = [buyer, seller, moderator].map(async (keypair) => {
+          const signature = await provider.connection.requestAirdrop(
+            keypair.publicKey, 
+            10 * LAMPORTS_PER_SOL
+          );
+          return provider.connection.confirmTransaction(signature);
+        });
+        
+        await Promise.all(airdropPromises);
+      }
+    }
     
-    await Promise.all(airdropPromises);
+    // 检查余额，确保有足够的资金
+    const buyerBalance = await provider.connection.getBalance(buyer.publicKey);
+    console.log(`买家余额: ${buyerBalance / LAMPORTS_PER_SOL} SOL`);
+    
+    // 如果余额不足，可以考虑跳过测试
+    if (buyerBalance < 1 * LAMPORTS_PER_SOL) {
+      console.warn("警告: 买家余额不足，测试可能会失败");
+    }
     
     // 准备SPL代币测试环境
     mintAuthority = Keypair.generate();
@@ -107,7 +191,6 @@ describe("escrow-program 测试", () => {
     );
     
     escrowAccount = derivedEscrowAddress;
-    escrowBump = derivedBump;
 
     console.log("=== 调试信息 ===");
     console.log("buyer公钥:", buyer.publicKey.toString());
@@ -171,7 +254,7 @@ describe("escrow-program 测试", () => {
   
   it("初始化SPL代币托管账户", async () => {
     const tokenUniqueId = Buffer.from(randomBytes(20));
-    const tokenAmount = 2 * LAMPORTS_PER_SOL;
+    const tokenAmount = 0.2 * LAMPORTS_PER_SOL;
     
     // 计算新的托管账户地址
     const [tokenEscrowAccount, tokenEscrowBump] = PublicKey.findProgramAddressSync(
@@ -230,7 +313,7 @@ describe("escrow-program 测试", () => {
   it("使用单个签名释放SOL", async () => {
     // 创建简单托管（只需要1个签名）
     const simpleUniqueId = Buffer.from(randomBytes(20));
-    const simpleAmount = 0.5 * LAMPORTS_PER_SOL;
+    const simpleAmount = 0.05 * LAMPORTS_PER_SOL;
     
     // 计算简单托管地址
     const [simpleEscrowAccount, simpleEscrowBump] = PublicKey.findProgramAddressSync(
@@ -330,7 +413,7 @@ describe("escrow-program 测试", () => {
   it("使用多个签名释放SOL", async () => {
     // 创建新的多签名托管
     const multiUniqueId = Buffer.from(randomBytes(20));
-    const multiAmount = 0.8 * LAMPORTS_PER_SOL;
+    const multiAmount = 0.08 * LAMPORTS_PER_SOL;
     
     // 计算多签名托管地址
     const [multiEscrowAccount, multiEscrowBump] = PublicKey.findProgramAddressSync(
@@ -416,7 +499,7 @@ describe("escrow-program 测试", () => {
   it("释放SPL代币", async () => {
     // 创建新的SPL代币托管
     const tokenUniqueId = Buffer.from(randomBytes(20));
-    const tokenAmount = 3 * LAMPORTS_PER_SOL;
+    const tokenAmount = 0.2 * LAMPORTS_PER_SOL;
     
     // 计算SPL托管地址
     const [tokenEscrowAccount, tokenEscrowBump] = PublicKey.findProgramAddressSync(
@@ -687,5 +770,44 @@ describe("escrow-program 测试", () => {
     
     assert.approximately(balance1After - balance1Before, amount1, 0.01 * LAMPORTS_PER_SOL);
     assert.approximately(balance2After - balance2Before, amount2, 0.01 * LAMPORTS_PER_SOL);
+});
+
+after(async () => {
+  try {
+    // 将剩余资金转回主账户
+    const mainAccount = new PublicKey("97mEtQYthR5c3hbeut4CYb5pU9FGZTop8k7aXraBanaV");
+    const rentExempt = await provider.connection.getMinimumBalanceForRentExemption(0);
+    
+    // 转移账户剩余资金的函数
+    const transferRemainingFunds = async (fromKeypair, accountType) => {
+      const balance = await provider.connection.getBalance(fromKeypair.publicKey);
+      if (balance > rentExempt + 10000) {
+        const transferAmount = balance - rentExempt - 10000; // 保留一些用于交易费
+        
+        await provider.connection.sendTransaction(
+          new anchor.web3.Transaction().add(
+            anchor.web3.SystemProgram.transfer({
+              fromPubkey: fromKeypair.publicKey,
+              toPubkey: mainAccount,
+              lamports: transferAmount,
+            })
+          ),
+          [fromKeypair]
+        );
+        
+        console.log(`已将 ${transferAmount / LAMPORTS_PER_SOL} SOL 从${accountType}账户转回主账户`);
+      }
+    };
+    
+    // 转移所有测试账户的剩余资金
+    await Promise.all([
+      transferRemainingFunds(buyer, "买家"),
+      transferRemainingFunds(seller, "卖家"),
+      transferRemainingFunds(moderator, "仲裁人")
+    ]);
+    
+  } catch (e) {
+    console.error("清理资金时出错:", e);
+  }
   });
 }); 
