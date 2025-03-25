@@ -7,7 +7,7 @@ pub mod error;
 use state::*;
 use instructions::{initialize::*, release::*};
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("E8vcELiVSEk8BLyHGY697muumtfqm8t8vEP4Mt5thYg7");
 
 #[program]
 pub mod escrow_program {

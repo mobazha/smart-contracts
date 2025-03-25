@@ -1,0 +1,21 @@
+{
+  "type": "module",
+  "scripts": {
+    "test": "anchor test --skip-local-validator"
+  },
+  "devDependencies": {
+    "@coral-xyz/anchor": "^0.31.0",
+    "@noble/ed25519": "^2.0.0",
+    "@types/bn.js": "^5.1.6",
+    "@types/chai": "^4.3.11",
+    "@types/mocha": "^10.0.6",
+    "chai": "^4.3.10",
+    "mocha": "^10.2.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@noble/hashes": "^1.7.1",
+    "@noble/secp256k1": "^2.2.3",
+    "tweetnacl": "^1.0.3"
+  }
+}

@@ -9,7 +9,7 @@ pub const MAX_REQUIRED_SIGNATURES: u8 = 2;
 pub enum TokenType {
     #[default] // 标记默认变体
     Sol,
-    Spl(Pubkey),  // Pubkey 是代币的 mint 地址
+    Spl { mint: Pubkey },
 }
 
 #[account]
@@ -23,6 +23,7 @@ pub struct Escrow {
     pub unlock_time: i64,                  // 8 bytes
     pub required_signatures: u8,           // 1 byte
     pub unique_id: [u8; 20],               // 20 bytes
+    pub bump: u8,
 }
 
 impl Escrow {
@@ -35,7 +36,8 @@ impl Escrow {
                           8 + // amount
                           8 + // unlock_time
                           1 + // required_signatures
-                          20; // unique_id
+                          20 + // unique_id
+                          1;  // bump
 
     pub fn get_escrow_address(
         program_id: &Pubkey,
@@ -79,6 +81,7 @@ impl Default for Escrow {
             unlock_time: 0,
             required_signatures: 0,
             unique_id: [0; 20],
+            bump: 0,
         }
     }
 } 

@@ -5,3 +5,5 @@ build
 node_modules
 abigenBindings
 solana/target
+solana_anchor/target
+solana_anchor/.anchor

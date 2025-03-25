@@ -42,8 +42,7 @@ pub struct Initialize<'info> {
     pub token_mint: Option<Account<'info, Mint>>,
     
     #[account(
-        init_if_needed,
-        payer = buyer,
+        mut,
         token::mint = token_mint,
         token::authority = buyer,
     )]
@@ -53,7 +52,9 @@ pub struct Initialize<'info> {
         init_if_needed,
         payer = buyer,
         token::mint = token_mint,
-        token::authority = escrow_account
+        token::authority = escrow_account,
+        seeds = [b"token_account", escrow_account.key().as_ref()],
+        bump
     )]
     pub escrow_token_account: Option<Account<'info, TokenAccount>>,
 }
@@ -83,6 +84,7 @@ pub fn handler(
     escrow.required_signatures = required_signatures;
     escrow.is_initialized = true;
     escrow.unique_id = unique_id;
+    escrow.bump = ctx.bumps.escrow_account;
 
     // 处理资金转移
     match token_type {
@@ -103,7 +105,7 @@ pub fn handler(
                 ],
             )?;
         },
-        TokenType::Spl(mint) => {
+        TokenType::Spl { mint } => {
             // 验证代币相关账户
             let token_program = ctx.accounts.token_program.as_ref()
                 .ok_or(error!(EscrowError::InvalidTokenAccount))?;
@@ -113,7 +115,7 @@ pub fn handler(
                 .ok_or(error!(EscrowError::InvalidTokenAccount))?;
             let escrow_token_account = ctx.accounts.escrow_token_account.as_ref()
                 .ok_or(error!(EscrowError::InvalidTokenAccount))?;
-            
+                    
             // 验证代币mint地址
             require!(token_mint.key() == mint, EscrowError::InvalidTokenAccount);
             
