@@ -38,35 +38,6 @@ impl Escrow {
                           1 + // required_signatures
                           20 + // unique_id
                           1;  // bump
-
-    pub fn get_escrow_address(
-        program_id: &Pubkey,
-        buyer: &Pubkey,
-        seller: &Pubkey,
-        moderator: Option<&Pubkey>,
-        unique_id: [u8; 20],
-    ) -> (Pubkey, u8) {
-        let moderator_ref = moderator.map(|m| m.as_ref()).unwrap_or(&[]);
-        
-        let seeds = if moderator.is_some() {
-            &[
-                ESCROW_SEED_PREFIX,
-                buyer.as_ref(),
-                seller.as_ref(),
-                moderator_ref,
-                &unique_id[..],
-            ][..]
-        } else {
-            &[
-                ESCROW_SEED_PREFIX,
-                buyer.as_ref(),
-                seller.as_ref(),
-                &unique_id[..],
-            ][..]
-        };
-
-        Pubkey::find_program_address(seeds, program_id)
-    }
 }
 
 impl Default for Escrow {
