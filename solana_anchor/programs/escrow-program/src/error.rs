@@ -40,4 +40,25 @@ pub enum EscrowError {
     
     #[msg("无效的签名")]
     InvalidSignature,
+    
+    #[msg("资金池未初始化")]
+    PoolNotInitialized,
+    
+    #[msg("资金池已被暂停")]
+    PoolIsInactive,
+    
+    #[msg("只有资金池管理者才能执行此操作")]
+    NotPoolAuthority,
+    
+    #[msg("交易记录已经完成")]
+    TransactionAlreadyCompleted,
+    
+    #[msg("交易记录已经取消")]
+    TransactionAlreadyCancelled,
+    
+    #[msg("交易记录状态无效")]
+    InvalidTransactionStatus,
+    
+    #[msg("资金池余额不足")]
+    InsufficientPoolBalance,
 } 

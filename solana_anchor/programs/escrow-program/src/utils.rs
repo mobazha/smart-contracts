@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use solana_program::ed25519_program::ID as ed25519_program_id;
 use solana_program::instruction::Instruction;
-use crate::{error::*, state::{TokenEscrow, SolEscrow, MAX_PAYMENT_TARGETS}};
+use crate::{error::*, state::*};
 
 pub trait EscrowAccount {
     fn buyer(&self) -> &Pubkey;
@@ -24,6 +24,26 @@ impl EscrowAccount for TokenEscrow {
 }
 
 impl EscrowAccount for SolEscrow {
+    fn buyer(&self) -> &Pubkey { &self.buyer }
+    fn seller(&self) -> &Pubkey { &self.seller }
+    fn moderator(&self) -> Option<Pubkey> { self.moderator }
+    fn required_signatures(&self) -> u8 { self.required_signatures }
+    fn unique_id(&self) -> &[u8; 20] { &self.unique_id }
+    fn amount(&self) -> u64 { self.amount }
+    fn unlock_time(&self) -> i64 { self.unlock_time }
+}
+
+impl EscrowAccount for SolEscrowRecord {
+    fn buyer(&self) -> &Pubkey { &self.buyer }
+    fn seller(&self) -> &Pubkey { &self.seller }
+    fn moderator(&self) -> Option<Pubkey> { self.moderator }
+    fn required_signatures(&self) -> u8 { self.required_signatures }
+    fn unique_id(&self) -> &[u8; 20] { &self.unique_id }
+    fn amount(&self) -> u64 { self.amount }
+    fn unlock_time(&self) -> i64 { self.unlock_time }
+}
+
+impl EscrowAccount for TokenEscrowRecord {
     fn buyer(&self) -> &Pubkey { &self.buyer }
     fn seller(&self) -> &Pubkey { &self.seller }
     fn moderator(&self) -> Option<Pubkey> { self.moderator }
@@ -85,11 +105,14 @@ pub fn construct_message(unique_id: &[u8; 20], amounts: &[u64]) -> Vec<u8> {
     message
 }
 
-pub fn verify_release_signatures<T: EscrowAccount + AccountSerialize + AccountDeserialize + Clone>(
-    escrow_account: &Account<T>,
+pub fn verify_release_signatures<T>(
+    escrow_account: &T,
     signatures: &[Vec<u8>],
     payment_amounts: &[u64],
-) -> Result<()> {
+) -> Result<()>
+where
+    T: EscrowAccount + AccountDeserialize + AccountSerialize + Clone,
+{
     let mut valid_signatures = 0u8;
     let message = construct_message(escrow_account.unique_id(), payment_amounts);
     
@@ -122,12 +145,15 @@ pub fn verify_release_signatures<T: EscrowAccount + AccountSerialize + AccountDe
     Ok(())
 }
 
-pub fn verify_signatures_with_timelock<T: EscrowAccount + AccountSerialize + AccountDeserialize + Clone>(
-    escrow_account: &Account<T>,
+pub fn verify_signatures_with_timelock<T>(
+    escrow_account: &T,
     signatures: &[Vec<u8>],
     payment_amounts: &[u64],
     current_time: i64,
-) -> Result<()> {
+) -> Result<()>
+where
+    T: EscrowAccount + AccountDeserialize + AccountSerialize + Clone,
+{
     // 检查时间锁是否过期
     let time_expired = current_time >= escrow_account.unlock_time();
     
@@ -161,5 +187,22 @@ pub fn close_escrow_and_return_rent<'info>(
     let rent_lamports = escrow_account.lamports();
     **escrow_account.try_borrow_mut_lamports()? = 0;
     **buyer.try_borrow_mut_lamports()? += rent_lamports;
+    Ok(())
+}
+
+// 工具函数：取消托管交易
+pub fn cancel_transaction<T: AccountSerialize + AccountDeserialize + Clone>(
+    escrow_record: &mut Account<T>,
+    status: &mut TransactionStatus,
+    current_time: i64,
+) -> Result<()> {
+    require!(*status == TransactionStatus::Pending, EscrowError::InvalidTransactionStatus);
+    
+    *status = TransactionStatus::Cancelled;
+    
+    // 使用更简单的方式完成 - 不直接操作内存
+    // 注意：此处只是示例，如需精确修改特定字段应使用专用的指令
+    msg!("交易已取消，时间：{}", current_time);
+    
     Ok(())
 }

@@ -64,7 +64,7 @@ pub fn handler(
     
     // 验证签名（包含时间锁检查）
     verify_signatures_with_timelock(
-        &ctx.accounts.escrow_account,
+        &*ctx.accounts.escrow_account,
         &signatures,
         &payment_amounts,
         ctx.accounts.clock.unix_timestamp,
