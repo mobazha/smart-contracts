@@ -131,10 +131,8 @@ pub fn verify_signatures_with_timelock<T: EscrowAccount + AccountSerialize + Acc
     // 检查时间锁是否过期
     let time_expired = current_time >= escrow_account.unlock_time();
     
-    // 如果时间未过期，需要验证所有必要的签名
-    if !time_expired {
-        verify_release_signatures(escrow_account, signatures, payment_amounts)?;
-    } else {
+    if time_expired {
+        msg!("Timelock expired. Only seller signature required.");
         // 时间锁过期，但卖家必须签名
         let message = construct_message(escrow_account.unique_id(), payment_amounts);
         let mut seller_signed = false;
@@ -142,11 +140,15 @@ pub fn verify_signatures_with_timelock<T: EscrowAccount + AccountSerialize + Acc
         for signature in signatures {
             if verify_ed25519_signature(&message, signature, escrow_account.seller()).is_ok() {
                 seller_signed = true;
+                msg!("Seller signature verified successfully.");
                 break;
             }
         }
         
         require!(seller_signed, EscrowError::InsufficientSignatures);
+    } else {
+        msg!("Timelock active. Verifying all required signatures.");
+        verify_release_signatures(escrow_account, signatures, payment_amounts)?;
     }
     
     Ok(())
