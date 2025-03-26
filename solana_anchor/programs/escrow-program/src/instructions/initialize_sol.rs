@@ -49,6 +49,9 @@ pub fn handler(
     require!(required_signatures <= MAX_REQUIRED_SIGNATURES, EscrowError::TooManyRequiredSignatures);
     require!(amount > 0, EscrowError::ZeroAmount);
     
+    // 获取escrow_account_info
+    let escrow_account_info = ctx.accounts.escrow_account.to_account_info();
+    
     // 初始化托管账户状态
     let escrow = &mut ctx.accounts.escrow_account;
     escrow.is_initialized = true;
@@ -64,7 +67,7 @@ pub fn handler(
     // 转移SOL到escrow账户
     let ix = anchor_lang::solana_program::system_instruction::transfer(
         &ctx.accounts.buyer.key(),
-        &ctx.accounts.escrow_account.key(),
+        &escrow_account_info.key(),
         amount,
     );
     
@@ -72,10 +75,18 @@ pub fn handler(
         &ix,
         &[
             ctx.accounts.buyer.to_account_info(),
-            ctx.accounts.escrow_account.to_account_info(),
+            escrow_account_info,
             ctx.accounts.system_program.to_account_info(),
         ],
     )?;
+
+    msg!(
+        "Initialized SOL escrow: Buyer={}, Seller={}, Amount={}, ID={:?}",
+        escrow.buyer,
+        escrow.seller,
+        escrow.amount,
+        escrow.unique_id
+    );
     
     Ok(())
 } 

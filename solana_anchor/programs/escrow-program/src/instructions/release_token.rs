@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, CloseAccount};
+use anchor_spl::associated_token::AssociatedToken;
 use crate::{state::*, error::*, utils::{verify_payment_amounts, verify_signatures_with_timelock, close_escrow_and_return_rent}};
 
 #[derive(Accounts)]
@@ -32,10 +33,12 @@ pub struct ReleaseToken<'info> {
     pub escrow_account: Account<'info, TokenEscrow>,
     
     pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
     
     #[account(
         mut,
-        token::authority = escrow_account
+        token::authority = escrow_account,
+        constraint = escrow_token_account.mint == escrow_account.mint
     )]
     pub escrow_token_account: Account<'info, TokenAccount>,
     
@@ -89,12 +92,11 @@ pub fn handler(
     ];
     let signer_seeds = &[&seeds[..]];
 
-    // 直接处理每个支付
     let recipients = [
-        Some((&ctx.accounts.recipient1, payment_amounts.get(0))),
-        ctx.accounts.recipient2.as_ref().map(|r| (r, payment_amounts.get(1))),
-        ctx.accounts.recipient3.as_ref().map(|r| (r, payment_amounts.get(2))),
-        ctx.accounts.recipient4.as_ref().map(|r| (r, payment_amounts.get(3))),
+        (Some(&ctx.accounts.recipient1), payment_amounts.get(0)),
+        (ctx.accounts.recipient2.as_ref(), payment_amounts.get(1)),
+        (ctx.accounts.recipient3.as_ref(), payment_amounts.get(2)),
+        (ctx.accounts.recipient4.as_ref(), payment_amounts.get(3)),
     ];
 
     process_token_payments(
@@ -133,15 +135,14 @@ fn process_token_payments<'info>(
     escrow_token_account: &Account<'info, TokenAccount>,
     escrow_account: &Account<'info, TokenEscrow>,
     token_program: &Program<'info, Token>,
-    recipients: &[Option<(&Account<'info, TokenAccount>, Option<&u64>)>],
+    recipients: &[(Option<&Account<'info, TokenAccount>>, Option<&u64>)],
     signer_seeds: &[&[&[u8]]],
 ) -> Result<()> {
-    for recipient in recipients.iter().flatten() {
-        let (recipient_account, amount) = recipient;
-        if let Some(&amount) = amount {
-            let recipient_token = recipient_account.to_account_info();
+    for (recipient_opt, amount_opt) in recipients {
+        if let (Some(recipient), Some(&amount)) = (recipient_opt, amount_opt) {
+            let recipient_token = recipient.to_account_info();
             require!(
-                recipient_account.mint == escrow_account.mint,
+                recipient.mint == escrow_account.mint,
                 EscrowError::InvalidTokenAccount
             );
             

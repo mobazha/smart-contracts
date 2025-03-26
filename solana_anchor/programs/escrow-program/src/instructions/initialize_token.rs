@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Mint, Token, TokenAccount};
+use anchor_spl::token::{self, Token, TokenAccount, Mint};
+use anchor_spl::associated_token::AssociatedToken;
 use crate::{state::*, error::*};
 
 #[derive(Accounts)]
@@ -34,6 +35,7 @@ pub struct InitializeToken<'info> {
     
     pub token_program: Program<'info, Token>,
     pub token_mint: Account<'info, Mint>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
     
     #[account(
         mut,
@@ -45,10 +47,8 @@ pub struct InitializeToken<'info> {
     #[account(
         init_if_needed,
         payer = buyer,
-        token::mint = token_mint,
-        token::authority = escrow_account,
-        seeds = [b"token_account", escrow_account.key().as_ref()],
-        bump
+        associated_token::mint = token_mint,
+        associated_token::authority = escrow_account,
     )]
     pub escrow_token_account: Account<'info, TokenAccount>,
     
@@ -96,6 +96,14 @@ pub fn handler(
     );
     
     token::transfer(escrow_transfer_ctx, amount)?;
+    
+    msg!(
+        "Initialized token escrow: Buyer={}, Seller={}, Amount={}, ID={:?}",
+        escrow.buyer,
+        escrow.seller,
+        escrow.amount,
+        escrow.unique_id
+    );
     
     Ok(())
 } 
