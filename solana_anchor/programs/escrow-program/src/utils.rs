@@ -1,157 +1,145 @@
 use anchor_lang::prelude::*;
-use solana_program::ed25519_program::ID as ed25519_program_id;
-use solana_program::instruction::Instruction;
-use crate::{error::*, state::{TokenEscrow, SolEscrow, MAX_PAYMENT_TARGETS}};
+use crate::{error::*, state::{MAX_PAYMENT_TARGETS, EscrowAccount}, ed25519};
 
-pub trait EscrowAccount {
-    fn buyer(&self) -> &Pubkey;
-    fn seller(&self) -> &Pubkey;
-    fn moderator(&self) -> Option<Pubkey>;
-    fn required_signatures(&self) -> u8;
-    fn unique_id(&self) -> &[u8; 20];
-    fn amount(&self) -> u64;
-    fn unlock_time(&self) -> i64;
-}
-
-impl EscrowAccount for TokenEscrow {
-    fn buyer(&self) -> &Pubkey { &self.buyer }
-    fn seller(&self) -> &Pubkey { &self.seller }
-    fn moderator(&self) -> Option<Pubkey> { self.moderator }
-    fn required_signatures(&self) -> u8 { self.required_signatures }
-    fn unique_id(&self) -> &[u8; 20] { &self.unique_id }
-    fn amount(&self) -> u64 { self.amount }
-    fn unlock_time(&self) -> i64 { self.unlock_time }
-}
-
-impl EscrowAccount for SolEscrow {
-    fn buyer(&self) -> &Pubkey { &self.buyer }
-    fn seller(&self) -> &Pubkey { &self.seller }
-    fn moderator(&self) -> Option<Pubkey> { self.moderator }
-    fn required_signatures(&self) -> u8 { self.required_signatures }
-    fn unique_id(&self) -> &[u8; 20] { &self.unique_id }
-    fn amount(&self) -> u64 { self.amount }
-    fn unlock_time(&self) -> i64 { self.unlock_time }
-}
-
-pub fn verify_payment_amounts<T: EscrowAccount + AccountSerialize + AccountDeserialize + Clone>(
+pub fn verify_payment_amounts<T>(
     payment_amounts: &[u64],
-    escrow_account: &Account<T>,
-) -> Result<()> {
-    require!(payment_amounts.len() <= MAX_PAYMENT_TARGETS, EscrowError::TooManyPaymentTargets);
-    require!(payment_amounts.len() > 0, EscrowError::InvalidPaymentTargets);
+    escrow_account: &T,
+) -> Result<()>
+where
+    T: AsRef<EscrowAccount>,
+{
+    let base = escrow_account.as_ref();
+    
+    require!(payment_amounts.len() <= MAX_PAYMENT_TARGETS, EscrowError::InvalidPaymentParameters);
+    require!(payment_amounts.len() > 0, EscrowError::InvalidPaymentParameters);
     
     let total_amount: u64 = payment_amounts.iter().sum();
-    require!(total_amount <= escrow_account.amount(), EscrowError::PaymentAmountMismatch);
+    require!(total_amount <= base.amount, EscrowError::InvalidPaymentParameters);
     
     Ok(())
-}
-
-pub fn verify_ed25519_signature(
-    message: &[u8], 
-    signature: &[u8],
-    signer: &Pubkey,  // 添加签名者的公钥参数
-) -> Result<()> {
-    let ix = Instruction::new_with_bytes(
-        ed25519_program_id,
-        &[
-            // ed25519 instruction format:
-            // [public_key (32 bytes), signature (64 bytes), message_length (4 bytes), message (variable)]
-            &signer.to_bytes(),  // 使用传入的签名者公钥
-            signature, 
-            &(message.len() as u32).to_le_bytes(),
-            message
-        ].concat(),
-        vec![],  // ed25519 program doesn't need account metas
-    );
-    
-    let result = solana_program::program::invoke(
-        &ix,
-        &[]  // ed25519 program doesn't need accounts
-    );
-
-    match result {
-        Ok(_) => Ok(()),
-        Err(_) => err!(EscrowError::InvalidSignature),
-    }
 }
 
 // 构造消息的逻辑也可以抽取
-pub fn construct_message(unique_id: &[u8; 20], amounts: &[u64]) -> Vec<u8> {
+pub fn construct_message(unique_id: &[u8; 20], recipients: &[Option<Pubkey>], amounts: &[u64]) -> Vec<u8> {
     let mut message = Vec::new();
     message.extend_from_slice(unique_id);
-    for amount in amounts {
-        message.extend_from_slice(&amount.to_le_bytes());
+    
+    // 确保两个数组长度一致
+    let len = std::cmp::min(amounts.len(), recipients.len());
+    
+    for i in 0..len {
+        // 如果接收方为空，停止添加数据
+        if recipients[i].is_none() {
+            break;
+        }
+        
+        // 先添加接收方，再添加金额
+        message.extend_from_slice(recipients[i].as_ref().unwrap().as_ref());
+        message.extend_from_slice(&amounts[i].to_le_bytes());
     }
+    
     message
 }
 
-pub fn verify_release_signatures<T: EscrowAccount + AccountSerialize + AccountDeserialize + Clone>(
-    escrow_account: &Account<T>,
+pub fn verify_signatures_with_timelock<T>(
+    escrow_account: &T,
     signatures: &[Vec<u8>],
     payment_amounts: &[u64],
-) -> Result<()> {
-    let mut valid_signatures = 0u8;
-    let message = construct_message(escrow_account.unique_id(), payment_amounts);
+    recipients: &[Option<Pubkey>],
+    current_time: i64,
+    instructions_sysvar: &AccountInfo,
+    required_signatures: u8,
+) -> Result<()>
+where
+    T: AsRef<EscrowAccount>,
+{
+    let base = escrow_account.as_ref();
     
-    for signature in signatures {
-        // 尝试验证买家的签名
-        if verify_ed25519_signature(&message, signature, escrow_account.buyer()).is_ok() {
-            valid_signatures += 1;
-            continue;
-        }
+    // 构造消息
+    let message = construct_message(&base.unique_id, recipients, payment_amounts);
+    
+    // 时间锁检查
+    let time_expired = current_time >= base.unlock_time;
+    
+    // 获取授权签名者
+    let buyer = base.buyer;
+    let seller = base.seller;
+    
+    if !time_expired {
+        // 时间锁未到期 - 验证签名
+        let all_signers = verify_ed25519_instructions(
+            instructions_sysvar,
+            signatures,
+            &message,
+        )?;
         
-        // 尝试验证卖家的签名
-        if verify_ed25519_signature(&message, signature, escrow_account.seller()).is_ok() {
-            valid_signatures += 1;
-            continue;
-        }
+        // 过滤有效签名者
+        let valid_signers: Vec<_> = all_signers.into_iter()
+            .filter(|signer| {
+                *signer == buyer || 
+                *signer == seller || 
+                (base.moderator.is_some() && *signer == base.moderator.unwrap())
+            })
+            .collect();
         
-        // 如果有仲裁者，尝试验证仲裁者的签名
-        if let Some(moderator) = escrow_account.moderator() {
-            if verify_ed25519_signature(&message, signature, &moderator).is_ok() {
-                valid_signatures += 1;
-            }
-        }
+        // 检查有效签名数量
+        require!(
+            valid_signers.len() >= required_signatures as usize,
+            EscrowError::SignatureVerificationFailed
+        );
+    } else {
+        // 时间锁已过期 - 只需卖家签名
+        let all_signers = verify_ed25519_instructions(
+            instructions_sysvar,
+            signatures,
+            &message,
+        )?;
+        
+        require!(
+            all_signers.contains(&seller),
+            EscrowError::Unauthorized
+        );
     }
-
-    require!(
-        valid_signatures >= escrow_account.required_signatures(),
-        EscrowError::InsufficientSignatures
-    );
     
     Ok(())
 }
 
-pub fn verify_signatures_with_timelock<T: EscrowAccount + AccountSerialize + AccountDeserialize + Clone>(
-    escrow_account: &Account<T>,
-    signatures: &[Vec<u8>],
-    payment_amounts: &[u64],
-    current_time: i64,
-) -> Result<()> {
-    // 检查时间锁是否过期
-    let time_expired = current_time >= escrow_account.unlock_time();
+// 优化验证函数，传递所需签名数量
+pub fn verify_ed25519_instructions(
+    instructions_sysvar: &AccountInfo,
+    expected_signatures: &[Vec<u8>],
+    expected_message: &[u8],
+) -> Result<Vec<Pubkey>> {
+    let mut valid_signers = Vec::new();
     
-    if time_expired {
-        msg!("Timelock expired. Only seller signature required.");
-        // 时间锁过期，但卖家必须签名
-        let message = construct_message(escrow_account.unique_id(), payment_amounts);
-        let mut seller_signed = false;
-        
-        for signature in signatures {
-            if verify_ed25519_signature(&message, signature, escrow_account.seller()).is_ok() {
-                seller_signed = true;
-                msg!("Seller signature verified successfully.");
-                break;
-            }
-        }
-        
-        require!(seller_signed, EscrowError::InsufficientSignatures);
-    } else {
-        msg!("Timelock active. Verifying all required signatures.");
-        verify_release_signatures(escrow_account, signatures, payment_amounts)?;
-    }
+    // 获取当前指令索引与前一个指令
+    let current_index = solana_program::sysvar::instructions::load_current_index_checked(
+        instructions_sysvar
+    )?;
     
-    Ok(())
+    require!(current_index > 0, EscrowError::SignatureVerificationFailed);
+    
+    let prev_ix = solana_program::sysvar::instructions::load_instruction_at_checked(
+        (current_index as usize) - 1,
+        instructions_sysvar,
+    )?;
+    
+    require!(
+        prev_ix.program_id == solana_program::ed25519_program::ID,
+        EscrowError::SignatureVerificationFailed
+    );
+
+    let pubkeys = ed25519::verify_ed25519_signatures(
+        &prev_ix.data, 
+        expected_signatures, 
+        expected_message,
+    )?;
+    
+    valid_signers.extend(pubkeys);
+    
+    require!(!valid_signers.is_empty(), EscrowError::SignatureVerificationFailed);
+    
+    Ok(valid_signers)
 }
 
 pub fn close_escrow_and_return_rent<'info>(
@@ -162,4 +150,33 @@ pub fn close_escrow_and_return_rent<'info>(
     **escrow_account.try_borrow_mut_lamports()? = 0;
     **buyer.try_borrow_mut_lamports()? += rent_lamports;
     Ok(())
+}
+
+pub fn process_release<T>(
+    escrow_account: &T,
+    signatures: &[Vec<u8>],
+    payment_amounts: &[u64],
+    recipients: &[Option<Pubkey>],
+    current_time: i64,
+    instructions_sysvar: &AccountInfo,
+    transfer_function: impl FnOnce() -> Result<()>,
+) -> Result<()> 
+where 
+    T: AsRef<EscrowAccount>,
+{
+    let base = escrow_account.as_ref();
+    
+    verify_payment_amounts(payment_amounts, escrow_account)?;
+    
+    verify_signatures_with_timelock(
+        escrow_account,
+        signatures,
+        payment_amounts,
+        recipients,
+        current_time,
+        instructions_sysvar,
+        base.required_signatures,
+    )?;
+    
+    transfer_function()
 }

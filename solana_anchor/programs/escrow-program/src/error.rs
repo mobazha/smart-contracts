@@ -2,42 +2,35 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum EscrowError {
-    #[msg("金额不能为零")]
-    ZeroAmount,
+    // 通用错误
+    #[msg("无效操作")]
+    InvalidOperation,
     
-    #[msg("金额超出范围")]
-    AmountOverflow,
+    // 合并多种验证错误
+    #[msg("验证失败")]
+    ValidationFailed,
     
-    #[msg("金额不足")]
-    InsufficientFunds,
+    // 签名相关错误（合并多种签名错误）
+    #[msg("签名验证失败")]
+    SignatureVerificationFailed,
     
-    #[msg("无效的账户数据")]
-    InvalidAccountData,
+    // 托管账户错误
+    #[msg("托管账户已存在")]
+    EscrowAlreadyExists,
     
-    #[msg("无效的代币账户")]
-    InvalidTokenAccount,
+    // 付款错误（合并金额和接收方错误）
+    #[msg("付款参数无效")]
+    InvalidPaymentParameters,
     
-    #[msg("无效的签名者")]
-    InvalidSigner,
+    // 操作权限错误
+    #[msg("无操作权限")]
+    Unauthorized,
     
-    #[msg("未满足所需签名数量")]
-    InsufficientSignatures,
+    // 时间锁错误
+    #[msg("时间锁未到期")]
+    TimelockActive,
     
-    #[msg("支付目标无效")]
-    InvalidPaymentTargets,
-    
-    #[msg("支付目标总额与托管金额不匹配")]
-    PaymentAmountMismatch,
-    
-    #[msg("超出最大支付目标数量")]
-    TooManyPaymentTargets,
-    
-    #[msg("所需签名数量超过最大值")]
-    TooManyRequiredSignatures,
-    
-    #[msg("没有签名")]
-    NoSignature,
-    
-    #[msg("无效的签名")]
-    InvalidSignature,
+    // 指令相关错误（合并指令验证错误）
+    #[msg("指令格式无效")]
+    InvalidInstruction,
 } 

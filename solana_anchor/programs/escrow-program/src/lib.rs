@@ -3,6 +3,7 @@ use anchor_lang::prelude::*;
 pub mod state;
 pub mod instructions;
 pub mod error;
+pub mod ed25519;
 pub mod utils;
 
 use instructions::{initialize_sol::*, initialize_token::*, release_sol::*, release_token::*};

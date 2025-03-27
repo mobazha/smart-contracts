@@ -1,42 +1,39 @@
 use anchor_lang::prelude::*;
+use crate::error::*;
 
 // 定义常量
 pub const ESCROW_SEED_PREFIX: &[u8] = b"escrow";
 pub const MAX_PAYMENT_TARGETS: usize = 4;
 pub const MAX_REQUIRED_SIGNATURES: u8 = 2;
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, Default)]
-pub enum TokenType {
-    #[default] // 标记默认变体
-    Sol,
-    Spl { mint: Pubkey },
-}
-
-#[account]
-pub struct SolEscrow {
-    pub is_initialized: bool,              // 1 byte - 表示账户是否初始化
-    pub buyer: Pubkey,                     // 32 bytes
-    pub seller: Pubkey,                    // 32 bytes
-    pub moderator: Option<Pubkey>,         // 33 bytes
-    pub amount: u64,                       // 8 bytes
-    pub unlock_time: i64,                  // 8 bytes
-    pub required_signatures: u8,           // 1 byte
-    pub unique_id: [u8; 20],               // 20 bytes
-    pub bump: u8,
-}
-
-#[account]
-pub struct TokenEscrow {
+// 将 BaseEscrow 重命名为 EscrowAccount
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
+pub struct EscrowAccount {
     pub is_initialized: bool,
     pub buyer: Pubkey,
     pub seller: Pubkey,
     pub moderator: Option<Pubkey>,
-    pub mint: Pubkey,
-    pub amount: u64,
-    pub unlock_time: i64,
     pub required_signatures: u8,
-    pub unique_id: [u8; 20],
+    pub unlock_time: i64,
+    pub unique_id: [u8; 20],  // 可以减少为16字节或8字节以进一步优化
+    pub amount: u64,
     pub bump: u8,
+}
+
+// SOL托管账户
+#[account]
+pub struct SolEscrow {
+    // 使用基础托管结构
+    pub base: EscrowAccount,
+}
+
+// 代币托管账户
+#[account]
+pub struct TokenEscrow {
+    // 使用基础托管结构
+    pub base: EscrowAccount,
+    // 代币特有字段
+    pub mint: Pubkey
 }
 
 impl SolEscrow {
@@ -69,15 +66,17 @@ impl TokenEscrow {
 impl Default for SolEscrow {
     fn default() -> Self {
         Self {
-            is_initialized: false,
-            buyer: Pubkey::default(),
-            seller: Pubkey::default(),
-            moderator: None,
-            amount: 0,
-            unlock_time: 0,
-            required_signatures: 0,
-            unique_id: [0; 20],
-            bump: 0,
+            base: EscrowAccount {
+                is_initialized: false,
+                buyer: Pubkey::default(),
+                seller: Pubkey::default(),
+                moderator: None,
+                required_signatures: 0,
+                unlock_time: 0,
+                unique_id: [0; 20],
+                amount: 0,
+                bump: 0,
+            },
         }
     }
 }
@@ -85,16 +84,67 @@ impl Default for SolEscrow {
 impl Default for TokenEscrow {
     fn default() -> Self {
         Self {
-            is_initialized: false,
-            buyer: Pubkey::default(),
-            seller: Pubkey::default(),
-            moderator: None,
-            mint: Pubkey::default(),
-            amount: 0,
-            unlock_time: 0,
-            required_signatures: 0,
-            unique_id: [0; 20],
-            bump: 0,
+            base: EscrowAccount {
+                is_initialized: false,
+                buyer: Pubkey::default(),
+                seller: Pubkey::default(),
+                moderator: None,
+                required_signatures: 0,
+                unlock_time: 0,
+                unique_id: [0; 20],
+                amount: 0,
+                bump: 0,
+            },
+            mint: Pubkey::default()
         }
+    }
+}
+
+// 更新 AsRef 实现
+impl AsRef<EscrowAccount> for SolEscrow {
+    fn as_ref(&self) -> &EscrowAccount {
+        &self.base
+    }
+}
+
+impl AsRef<EscrowAccount> for TokenEscrow {
+    fn as_ref(&self) -> &EscrowAccount {
+        &self.base
+    }
+}
+
+// 实用方法现在在 EscrowAccount 上
+impl EscrowAccount {
+    pub fn new(
+        buyer: Pubkey,
+        seller: Pubkey,
+        moderator: Option<Pubkey>,
+        required_signatures: u8,
+        unlock_time: i64,
+        unique_id: [u8; 20],
+        amount: u64,
+        bump: u8,
+    ) -> Self {
+        Self {
+            is_initialized: true,
+            buyer,
+            seller,
+            moderator,
+            required_signatures,
+            unlock_time,
+            unique_id,
+            amount,
+            bump,
+        }
+    }
+    
+    pub fn validate_required_signatures(&self) -> Result<()> {
+        // 基本验证逻辑
+        let max_possible = 2 + if self.moderator.is_some() { 1 } else { 0 };
+        require!(
+            self.required_signatures > 0 && self.required_signatures <= max_possible,
+            EscrowError::ValidationFailed
+        );
+        Ok(())
     }
 } 

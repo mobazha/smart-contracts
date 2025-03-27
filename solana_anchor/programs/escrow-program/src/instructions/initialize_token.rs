@@ -66,22 +66,28 @@ pub fn handler(
     amount: u64,
 ) -> Result<()> {
     // 验证参数
-    require!(required_signatures > 0, EscrowError::NoSignature);
-    require!(required_signatures <= MAX_REQUIRED_SIGNATURES, EscrowError::TooManyRequiredSignatures);
-    require!(amount > 0, EscrowError::ZeroAmount);
+    require!(amount > 0, EscrowError::InvalidPaymentParameters);
     
     // 初始化托管账户状态
     let escrow = &mut ctx.accounts.escrow_account;
-    escrow.is_initialized = true;
-    escrow.buyer = ctx.accounts.buyer.key();
-    escrow.seller = ctx.accounts.seller.key();
-    escrow.moderator = moderator;
-    escrow.mint = ctx.accounts.token_mint.key();  // 记录代币mint地址
-    escrow.amount = amount;
-    escrow.unlock_time = ctx.accounts.clock.unix_timestamp + (unlock_hours as i64 * 3600);
-    escrow.required_signatures = required_signatures;
-    escrow.unique_id = unique_id;
-    escrow.bump = ctx.bumps.escrow_account;
+    
+    // 使用 EscrowAccount::new 创建基础结构
+    escrow.base = EscrowAccount::new(
+        ctx.accounts.buyer.key(),
+        ctx.accounts.seller.key(),
+        moderator,
+        required_signatures,
+        ctx.accounts.clock.unix_timestamp + (unlock_hours as i64 * 3600),
+        unique_id,
+        amount,
+        ctx.bumps.escrow_account,
+    );
+    
+    // 验证签名要求
+    escrow.base.validate_required_signatures()?;
+    
+    // 设置代币特有字段
+    escrow.mint = ctx.accounts.token_mint.key();
 
     // 转移代币到escrow代币账户
     let transfer_to_escrow_ix = anchor_spl::token::Transfer {
@@ -99,10 +105,10 @@ pub fn handler(
     
     msg!(
         "Initialized token escrow: Buyer={}, Seller={}, Amount={}, ID={:?}",
-        escrow.buyer,
-        escrow.seller,
-        escrow.amount,
-        escrow.unique_id
+        escrow.base.buyer,
+        escrow.base.seller,
+        escrow.base.amount,
+        escrow.base.unique_id
     );
     
     Ok(())

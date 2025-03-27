@@ -1,0 +1,10 @@
+{
+  "programId": "E8vcELiVSEk8BLyHGY697muumtfqm8t8vEP4Mt5thYg7",
+  "connection": "https://api.devnet.solana.com",
+  "keypairPaths": {
+    "main": "~/.config/solana/id.json",
+    "buyer": "./keypairs/buyer.json",
+    "seller": "./keypairs/seller.json",
+    "moderator": "./keypairs/moderator.json"
+  }
+} 

@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use crate::{state::*, error::*};
+use crate::state::*;
 
 #[derive(Accounts)]
 #[instruction(
@@ -44,49 +44,36 @@ pub fn handler(
     unlock_hours: u64,
     amount: u64,
 ) -> Result<()> {
-    // 验证参数
-    require!(required_signatures > 0, EscrowError::NoSignature);
-    require!(required_signatures <= MAX_REQUIRED_SIGNATURES, EscrowError::TooManyRequiredSignatures);
-    require!(amount > 0, EscrowError::ZeroAmount);
-    
-    // 获取escrow_account_info
-    let escrow_account_info = ctx.accounts.escrow_account.to_account_info();
-    
-    // 初始化托管账户状态
     let escrow = &mut ctx.accounts.escrow_account;
-    escrow.is_initialized = true;
-    escrow.buyer = ctx.accounts.buyer.key();
-    escrow.seller = ctx.accounts.seller.key();
-    escrow.moderator = moderator;
-    escrow.amount = amount;
-    escrow.unlock_time = ctx.accounts.clock.unix_timestamp + (unlock_hours as i64 * 3600);
-    escrow.required_signatures = required_signatures;
-    escrow.unique_id = unique_id;
-    escrow.bump = ctx.bumps.escrow_account;
-
-    // 转移SOL到escrow账户
-    let ix = anchor_lang::solana_program::system_instruction::transfer(
-        &ctx.accounts.buyer.key(),
-        &escrow_account_info.key(),
+    
+    // 初始化基础托管账户
+    escrow.base = EscrowAccount::new(
+        ctx.accounts.buyer.key(),
+        ctx.accounts.seller.key(),
+        moderator,
+        required_signatures,
+        ctx.accounts.clock.unix_timestamp + (unlock_hours * 3600) as i64,
+        unique_id,
         amount,
+        ctx.bumps.escrow_account,
     );
     
-    anchor_lang::solana_program::program::invoke(
-        &ix,
-        &[
-            ctx.accounts.buyer.to_account_info(),
-            escrow_account_info,
+    // 验证参数
+    escrow.base.validate_required_signatures()?;
+    
+    // 转移 SOL 到托管账户
+    anchor_lang::system_program::transfer(
+        CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
-        ],
+            anchor_lang::system_program::Transfer {
+                from: ctx.accounts.buyer.to_account_info(),
+                to: ctx.accounts.escrow_account.to_account_info(),
+            },
+        ),
+        amount,
     )?;
-
-    msg!(
-        "Initialized SOL escrow: Buyer={}, Seller={}, Amount={}, ID={:?}",
-        escrow.buyer,
-        escrow.seller,
-        escrow.amount,
-        escrow.unique_id
-    );
+    
+    msg!("SOL托管已初始化，金额: {} lamports", amount);
     
     Ok(())
 } 
