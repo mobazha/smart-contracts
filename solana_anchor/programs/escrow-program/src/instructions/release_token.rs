@@ -62,9 +62,9 @@ pub struct ReleaseToken<'info> {
     #[account(mut)]
     pub recipient4: Option<Account<'info, TokenAccount>>,
     
-    /// Sysvar Instructions account
+    /// CHECK: Sysvar Instructions account
     #[account(address = solana_program::sysvar::instructions::ID)]
-    pub sysvar_instructions: AccountInfo<'info>,
+    pub sysvar_instructions: UncheckedAccount<'info>,
 }
 
 pub fn handler(
@@ -72,7 +72,6 @@ pub fn handler(
     payment_amounts: Vec<u64>,
     signatures: Vec<Vec<u8>>
 ) -> Result<()> {
-    // 收集接收方代币账户和公钥
     let recipient_accounts = [
         Some(&ctx.accounts.recipient1),
         ctx.accounts.recipient2.as_ref(),
@@ -84,46 +83,6 @@ pub fn handler(
         .map(|acc| acc.map(|a| a.owner))
         .collect::<Vec<Option<Pubkey>>>();
     
-    // 使用统一的处理函数
-    process_release(
-        &*ctx.accounts.escrow_account,
-        &signatures,
-        &payment_amounts,
-        &recipient_pubkeys[..],
-        ctx.accounts.clock.unix_timestamp,
-        &ctx.accounts.sysvar_instructions,
-        || {
-            // 执行代币转账逻辑
-            transfer_tokens_to_recipients(
-                &ctx,
-                &payment_amounts,
-                &recipient_accounts
-            )?;
-            
-            // 关闭托管账户并返回租金
-            close_escrow_and_return_rent(
-                &ctx.accounts.escrow_account.to_account_info(),
-                &ctx.accounts.buyer,
-            )
-        },
-    )
-}
-
-// 代币转账逻辑
-fn transfer_tokens_to_recipients<'info>(
-    ctx: &Context<ReleaseToken<'info>>,
-    amounts: &[u64],
-    recipients: &[Option<&Account<'info, TokenAccount>>],
-) -> Result<()> {
-    // 验证所有接收方账户的代币类型
-    for recipient in recipients.iter().flatten() {
-        require!(
-            recipient.mint == ctx.accounts.escrow_account.mint,
-            EscrowError::ValidationFailed
-        );
-    }
-    
-    // 获取PDA签名种子
     let escrow_seed = &[
         b"token_escrow",
         ctx.accounts.escrow_account.base.buyer.as_ref(),
@@ -133,17 +92,67 @@ fn transfer_tokens_to_recipients<'info>(
         &[ctx.accounts.escrow_account.base.bump],
     ];
     
-    // 转账代币给各接收方
+    process_release(
+        &*ctx.accounts.escrow_account,
+        &signatures,
+        &payment_amounts,
+        &recipient_pubkeys[..],
+        ctx.accounts.clock.unix_timestamp,
+        &ctx.accounts.sysvar_instructions,
+        || {
+            transfer_tokens_to_recipients(
+                &ctx,
+                &payment_amounts,
+                &recipient_accounts,
+                escrow_seed
+            )?;
+
+            token::close_account(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    token::CloseAccount {
+                        account: ctx.accounts.escrow_token_account.to_account_info(),
+                        destination: ctx.accounts.buyer.to_account_info(),
+                        authority: ctx.accounts.escrow_account.to_account_info(),
+                    },
+                    &[escrow_seed],
+                )
+            )?;
+            
+            close_escrow_and_return_rent(
+                &ctx.accounts.escrow_account.to_account_info(),
+                &ctx.accounts.buyer,
+            )?;
+
+            msg!(
+                "Token escrow completed: Buyer={}, Seller={}, ID={:?}", 
+                ctx.accounts.escrow_account.base.buyer, 
+                ctx.accounts.escrow_account.base.seller,
+                ctx.accounts.escrow_account.base.unique_id
+            );
+
+            Ok(())
+        },
+    )
+}
+
+fn transfer_tokens_to_recipients<'info>(
+    ctx: &Context<ReleaseToken<'info>>,
+    amounts: &[u64],
+    recipients: &[Option<&Account<'info, TokenAccount>>],
+    escrow_seed: &[&[u8]],
+) -> Result<()> {
+    for recipient in recipients.iter().flatten() {
+        require!(
+            recipient.mint == ctx.accounts.escrow_account.mint,
+            EscrowError::TokenMintMismatch
+        );
+    }
+    
     for (i, amount) in amounts.iter().enumerate() {
         if let Some(recipient) = recipients[i] {
-            // 添加转账日志
-            msg!(
-                "Transfer {} tokens to account {}", 
-                amount, 
-                recipient.key()
-            );
+            msg!("Transfer {} tokens to account {}",  amount, recipient.key());
             
-            // 使用PDA签名执行转账
             token::transfer(
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
@@ -158,14 +167,6 @@ fn transfer_tokens_to_recipients<'info>(
             )?;
         }
     }
-    
-    // 添加完成日志
-    msg!(
-        "Token escrow completed: Buyer={}, Seller={}, ID={:?}", 
-        ctx.accounts.escrow_account.base.buyer, 
-        ctx.accounts.escrow_account.base.seller,
-        ctx.accounts.escrow_account.base.unique_id
-    );
     
     Ok(())
 } 

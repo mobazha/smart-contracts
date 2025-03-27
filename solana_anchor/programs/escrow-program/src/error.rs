@@ -33,4 +33,35 @@ pub enum EscrowError {
     // 指令相关错误（合并指令验证错误）
     #[msg("指令格式无效")]
     InvalidInstruction,
+    
+    // 新增更细粒度的错误类型
+    #[msg("签名数量不足")]
+    InsufficientSignatures,
+    
+    #[msg("签名者不是授权用户")]
+    InvalidSigner,
+    
+    #[msg("托管金额不足")]
+    InsufficientFunds,
+    
+    #[msg("接收方账户无效")]
+    InvalidRecipient,
+    
+    #[msg("接收方数量超过最大限制")]
+    TooManyRecipients,
+    
+    #[msg("总支付金额超过托管金额")]
+    PaymentAmountExceedsEscrow,
+    
+    #[msg("支付金额不能为零")]
+    ZeroPaymentAmount,
+    
+    #[msg("代币铸币地址不匹配")]
+    TokenMintMismatch,
+    
+    #[msg("必需签名数量无效")]
+    InvalidRequiredSignatures,
+    
+    #[msg("Ed25519指令未找到或无效")]
+    InvalidEd25519Instruction,
 } 

@@ -142,8 +142,12 @@ impl EscrowAccount {
         // 基本验证逻辑
         let max_possible = 2 + if self.moderator.is_some() { 1 } else { 0 };
         require!(
-            self.required_signatures > 0 && self.required_signatures <= max_possible,
-            EscrowError::ValidationFailed
+            self.required_signatures > 0,
+            EscrowError::InvalidRequiredSignatures
+        );
+        require!(
+            self.required_signatures <= max_possible,
+            EscrowError::InvalidRequiredSignatures
         );
         Ok(())
     }

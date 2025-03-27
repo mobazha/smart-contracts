@@ -10,11 +10,15 @@ where
 {
     let base = escrow_account.as_ref();
     
-    require!(payment_amounts.len() <= MAX_PAYMENT_TARGETS, EscrowError::InvalidPaymentParameters);
+    require!(payment_amounts.len() <= MAX_PAYMENT_TARGETS, EscrowError::TooManyRecipients);
     require!(payment_amounts.len() > 0, EscrowError::InvalidPaymentParameters);
     
+    for amount in payment_amounts {
+        require!(*amount > 0, EscrowError::ZeroPaymentAmount);
+    }
+    
     let total_amount: u64 = payment_amounts.iter().sum();
-    require!(total_amount <= base.amount, EscrowError::InvalidPaymentParameters);
+    require!(total_amount <= base.amount, EscrowError::PaymentAmountExceedsEscrow);
     
     Ok(())
 }
@@ -55,24 +59,20 @@ where
 {
     let base = escrow_account.as_ref();
     
-    // 构造消息
     let message = construct_message(&base.unique_id, recipients, payment_amounts);
     
-    // 时间锁检查
     let time_expired = current_time >= base.unlock_time;
     
-    // 获取授权签名者
     let buyer = base.buyer;
     let seller = base.seller;
     
     if !time_expired {
-        // 时间锁未到期 - 验证签名
         let all_signers = verify_ed25519_instructions(
             instructions_sysvar,
             signatures,
             &message,
         )?;
-        
+     
         // 过滤有效签名者
         let valid_signers: Vec<_> = all_signers.into_iter()
             .filter(|signer| {
@@ -81,11 +81,11 @@ where
                 (base.moderator.is_some() && *signer == base.moderator.unwrap())
             })
             .collect();
-        
+
         // 检查有效签名数量
         require!(
             valid_signers.len() >= required_signatures as usize,
-            EscrowError::SignatureVerificationFailed
+            EscrowError::InsufficientSignatures
         );
     } else {
         // 时间锁已过期 - 只需卖家签名
@@ -97,7 +97,7 @@ where
         
         require!(
             all_signers.contains(&seller),
-            EscrowError::Unauthorized
+            EscrowError::InvalidSigner
         );
     }
     
@@ -117,7 +117,7 @@ pub fn verify_ed25519_instructions(
         instructions_sysvar
     )?;
     
-    require!(current_index > 0, EscrowError::SignatureVerificationFailed);
+    require!(current_index > 0, EscrowError::InvalidEd25519Instruction);
     
     let prev_ix = solana_program::sysvar::instructions::load_instruction_at_checked(
         (current_index as usize) - 1,
@@ -126,7 +126,7 @@ pub fn verify_ed25519_instructions(
     
     require!(
         prev_ix.program_id == solana_program::ed25519_program::ID,
-        EscrowError::SignatureVerificationFailed
+        EscrowError::InvalidEd25519Instruction
     );
 
     let pubkeys = ed25519::verify_ed25519_signatures(
