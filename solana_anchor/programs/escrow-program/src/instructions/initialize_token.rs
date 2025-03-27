@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Mint};
 use anchor_spl::associated_token::AssociatedToken;
-use crate::{state::*, error::*};
+use crate::{state::*, error::*, utils::{bytes_to_hex_string, format_timestamp}};
 
 #[derive(Accounts)]
 #[instruction(
@@ -103,12 +103,20 @@ pub fn handler(
     
     token::transfer(escrow_transfer_ctx, amount)?;
     
+    // 将 ID 转换为十六进制字符串
+    let id_hex = bytes_to_hex_string(&unique_id);
+    
+    let unlock_time = ctx.accounts.clock.unix_timestamp + (unlock_hours as i64 * 3600);
+    let formatted_time = format_timestamp(unlock_time);
+    
     msg!(
-        "Initialized token escrow: Buyer={}, Seller={}, Amount={}, ID={:?}",
-        escrow.base.buyer,
-        escrow.base.seller,
-        escrow.base.amount,
-        escrow.base.unique_id
+        "Token escrow initialized: Buyer={}, Seller={}, ID=0x{}, Amount={} tokens, Required signatures={}, Unlock time={}",
+        ctx.accounts.buyer.key(),
+        ctx.accounts.seller.key(),
+        id_hex,
+        amount,
+        required_signatures,
+        formatted_time
     );
     
     Ok(())

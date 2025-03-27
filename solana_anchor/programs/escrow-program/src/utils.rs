@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::{error::*, state::{MAX_PAYMENT_TARGETS, EscrowAccount}, ed25519};
+use chrono::{TimeZone, Utc};
 
 pub fn verify_payment_amounts<T>(
     payment_amounts: &[u64],
@@ -179,4 +180,22 @@ where
     )?;
     
     transfer_function()
+}
+
+/// 将字节数组转换为十六进制字符串
+pub fn bytes_to_hex_string(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect::<String>()
+}
+
+/// 将 Unix 时间戳转换为可读的日期时间字符串
+pub fn format_timestamp(timestamp: i64) -> String {
+    match Utc.timestamp_opt(timestamp, 0) {
+        chrono::LocalResult::Single(dt) => {
+            format!("{} UTC", dt.format("%Y-%m-%d %H:%M:%S"))
+        },
+        _ => format!("{} (invalid timestamp)", timestamp),
+    }
 }

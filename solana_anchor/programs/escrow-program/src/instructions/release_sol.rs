@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use crate::{state::*, error::*, utils::{close_escrow_and_return_rent, process_release}};
+use crate::{state::*, error::*, utils::{close_escrow_and_return_rent, process_release, bytes_to_hex_string}};
 
 #[derive(Accounts)]
 #[instruction(
@@ -85,11 +85,13 @@ pub fn handler(
                 &ctx.accounts.buyer,
             )?;
 
+            let id_hex = bytes_to_hex_string(&ctx.accounts.escrow_account.base.unique_id);
+
             msg!(
-                "SOL escrow completed: Buyer={}, Seller={}, ID={:?}", 
+                "SOL escrow completed: Buyer={}, Seller={}, ID=0x{}", 
                 ctx.accounts.escrow_account.base.buyer, 
                 ctx.accounts.escrow_account.base.seller,
-                ctx.accounts.escrow_account.base.unique_id
+                id_hex
             );
             
             Ok(())

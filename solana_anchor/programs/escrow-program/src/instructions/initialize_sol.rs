@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::state::*;
+use crate::utils::{bytes_to_hex_string, format_timestamp};
 
 #[derive(Accounts)]
 #[instruction(
@@ -73,7 +74,20 @@ pub fn handler(
         amount,
     )?;
     
-    msg!("SOL托管已初始化，金额: {} lamports", amount);
+    let id_hex = bytes_to_hex_string(&unique_id);
+    
+    let unlock_time = ctx.accounts.clock.unix_timestamp + (unlock_hours * 3600) as i64;
+    let formatted_time = format_timestamp(unlock_time);
+    
+    msg!(
+        "SOL escrow initialized: Buyer={}, Seller={}, ID=0x{}, Amount={} lamports, Required signatures={}, Unlock time={}",
+        ctx.accounts.buyer.key(),
+        ctx.accounts.seller.key(),
+        id_hex,
+        amount,
+        required_signatures,
+        formatted_time
+    );
     
     Ok(())
 } 
