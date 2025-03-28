@@ -80,7 +80,7 @@ pub fn handler(
     ];
     
     let recipient_pubkeys = recipient_accounts.iter()
-        .map(|acc| acc.map(|a| a.owner))
+        .map(|acc| acc.map(|a| a.key()))
         .collect::<Vec<Option<Pubkey>>>();
     
     let escrow_seed = &[

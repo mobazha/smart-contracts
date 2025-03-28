@@ -24,21 +24,17 @@ where
     Ok(())
 }
 
-// 构造消息的逻辑也可以抽取
 pub fn construct_message(unique_id: &[u8; 20], recipients: &[Option<Pubkey>], amounts: &[u64]) -> Vec<u8> {
     let mut message = Vec::new();
     message.extend_from_slice(unique_id);
     
-    // 确保两个数组长度一致
     let len = std::cmp::min(amounts.len(), recipients.len());
     
     for i in 0..len {
-        // 如果接收方为空，停止添加数据
         if recipients[i].is_none() {
             break;
         }
         
-        // 先添加接收方，再添加金额
         message.extend_from_slice(recipients[i].as_ref().unwrap().as_ref());
         message.extend_from_slice(&amounts[i].to_le_bytes());
     }
@@ -74,7 +70,7 @@ where
             &message,
         )?;
      
-        // 过滤有效签名者
+        // Filter valid signers
         let valid_signers: Vec<_> = all_signers.into_iter()
             .filter(|signer| {
                 *signer == buyer || 
@@ -83,13 +79,13 @@ where
             })
             .collect();
 
-        // 检查有效签名数量
+        // Check the number of valid signatures
         require!(
             valid_signers.len() >= required_signatures as usize,
             EscrowError::InsufficientSignatures
         );
     } else {
-        // 时间锁已过期 - 只需卖家签名
+        // Timelock has expired - only seller signature is required
         let all_signers = verify_ed25519_instructions(
             instructions_sysvar,
             signatures,
@@ -105,7 +101,6 @@ where
     Ok(())
 }
 
-// 优化验证函数，传递所需签名数量
 pub fn verify_ed25519_instructions(
     instructions_sysvar: &AccountInfo,
     expected_signatures: &[Vec<u8>],
@@ -113,7 +108,7 @@ pub fn verify_ed25519_instructions(
 ) -> Result<Vec<Pubkey>> {
     let mut valid_signers = Vec::new();
     
-    // 获取当前指令索引与前一个指令
+    // Get current instruction index and previous instruction
     let current_index = solana_program::sysvar::instructions::load_current_index_checked(
         instructions_sysvar
     )?;
@@ -182,7 +177,7 @@ where
     transfer_function()
 }
 
-/// 将字节数组转换为十六进制字符串
+/// Convert byte array to hexadecimal string
 pub fn bytes_to_hex_string(bytes: &[u8]) -> String {
     bytes
         .iter()
@@ -190,7 +185,7 @@ pub fn bytes_to_hex_string(bytes: &[u8]) -> String {
         .collect::<String>()
 }
 
-/// 将 Unix 时间戳转换为可读的日期时间字符串
+/// Convert Unix timestamp to readable datetime string
 pub fn format_timestamp(timestamp: i64) -> String {
     match Utc.timestamp_opt(timestamp, 0) {
         chrono::LocalResult::Single(dt) => {

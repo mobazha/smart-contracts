@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use crate::error::*;
 
-// 简化的Ed25519签名偏移量结构
+// Simplified Ed25519 signature offsets structure
 #[derive(Debug)]
 pub struct Ed25519SignatureOffsets {
     pub signature_offset: usize,
@@ -25,31 +25,31 @@ impl Ed25519SignatureOffsets {
         }
     }
     
-    // 获取签名字节
+    // Get signature bytes
     pub fn get_signature<'a>(&self, data: &'a [u8]) -> &'a [u8] {
         &data[self.signature_offset..self.signature_offset+64]
     }
     
-    // 获取公钥字节
+    // Get public key bytes
     pub fn get_public_key<'a>(&self, data: &'a [u8]) -> &'a [u8] {
         &data[self.public_key_offset..self.public_key_offset+32]
     }
     
-    // 获取消息字节
+    // Get message bytes
     pub fn get_message<'a>(&self, data: &'a [u8]) -> &'a [u8] {
         &data[self.message_offset..self.message_offset+self.message_size]
     }
 }
 
-// 从指令数据中解析所有 Ed25519 签名验证
+// Parse all Ed25519 signature verifications from instruction data
 pub fn parse_ed25519_instruction_offsets(data: &[u8]) -> Result<Vec<Ed25519SignatureOffsets>> {
-    // 基本验证，确保至少有一个签名
+    // Basic validation, ensure at least one signature
     require!(data.len() >= 2, EscrowError::InvalidInstruction);
     
     let num_signatures = data[0] as usize;
     require!(num_signatures > 0, EscrowError::InvalidInstruction);
     
-    // 偏移量结构的起始位置
+    // Starting position of offset structures
     let offset_start = 2;
     let offset_size = 14;
     
@@ -57,7 +57,7 @@ pub fn parse_ed25519_instruction_offsets(data: &[u8]) -> Result<Vec<Ed25519Signa
     
     for i in 0..num_signatures {
         let offset_i = offset_start + (i * offset_size);
-        // 简化创建，移除额外验证
+        // Simplified creation, removed extra validation
         if offset_i + offset_size <= data.len() {
             let offset = Ed25519SignatureOffsets::from_bytes(data, offset_i);
             offsets.push(offset);
@@ -67,7 +67,7 @@ pub fn parse_ed25519_instruction_offsets(data: &[u8]) -> Result<Vec<Ed25519Signa
     Ok(offsets)
 }
 
-// 优化的验证函数
+// Optimized verification function
 pub fn verify_ed25519_signatures(
     data: &[u8],
     expected_signatures: &[Vec<u8>],
@@ -77,10 +77,10 @@ pub fn verify_ed25519_signatures(
     let mut valid_pubkeys = Vec::with_capacity(offsets.len());
     
     for offset in offsets {
-        // 简化安全检查，假设指令数据已经通过验证
+        // Simplified safety checks, assuming instruction data has been validated
         let msg_bytes = offset.get_message(data);
         
-        // 只有当消息匹配时才进行进一步验证
+        // Only proceed with further validation when the message matches
         if msg_bytes != expected_message {
             continue;
         }
@@ -88,10 +88,10 @@ pub fn verify_ed25519_signatures(
         let sig_bytes = offset.get_signature(data);
         let pubkey_bytes = offset.get_public_key(data);
         
-        // 检查签名是否在期望列表中
+        // Check if signature is in the expected list
         for expected_sig in expected_signatures {
             if sig_bytes == expected_sig.as_slice() {
-                // 添加有效公钥
+                // Add valid public key
                 if let Ok(bytes) = pubkey_bytes.try_into() {
                     valid_pubkeys.push(Pubkey::new_from_array(bytes));
                     break;

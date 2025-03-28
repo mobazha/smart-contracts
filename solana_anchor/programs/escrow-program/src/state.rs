@@ -1,12 +1,9 @@
 use anchor_lang::prelude::*;
 use crate::error::*;
 
-// 定义常量
-pub const ESCROW_SEED_PREFIX: &[u8] = b"escrow";
 pub const MAX_PAYMENT_TARGETS: usize = 4;
 pub const MAX_REQUIRED_SIGNATURES: u8 = 2;
 
-// 将 BaseEscrow 重命名为 EscrowAccount
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct EscrowAccount {
     pub is_initialized: bool,
@@ -15,29 +12,26 @@ pub struct EscrowAccount {
     pub moderator: Option<Pubkey>,
     pub required_signatures: u8,
     pub unlock_time: i64,
-    pub unique_id: [u8; 20],  // 可以减少为16字节或8字节以进一步优化
+    pub unique_id: [u8; 20],
     pub amount: u64,
     pub bump: u8,
 }
 
-// SOL托管账户
+// SOL Escrow Account
 #[account]
 pub struct SolEscrow {
-    // 使用基础托管结构
     pub base: EscrowAccount,
 }
 
-// 代币托管账户
+// Token Escrow Account
 #[account]
 pub struct TokenEscrow {
-    // 使用基础托管结构
     pub base: EscrowAccount,
-    // 代币特有字段
     pub mint: Pubkey
 }
 
 impl SolEscrow {
-    pub const LEN: usize = 8 + // 判别器
+    pub const LEN: usize = 8 + // discriminator
                           1 + // is_initialized
                           32 + // buyer
                           32 + // seller
@@ -50,7 +44,7 @@ impl SolEscrow {
 }
 
 impl TokenEscrow {
-    pub const LEN: usize = 8 + // 判别器
+    pub const LEN: usize = 8 + // discriminator
                           1 + // is_initialized
                           32 + // buyer
                           32 + // seller
@@ -100,7 +94,6 @@ impl Default for TokenEscrow {
     }
 }
 
-// 更新 AsRef 实现
 impl AsRef<EscrowAccount> for SolEscrow {
     fn as_ref(&self) -> &EscrowAccount {
         &self.base
@@ -113,7 +106,6 @@ impl AsRef<EscrowAccount> for TokenEscrow {
     }
 }
 
-// 实用方法现在在 EscrowAccount 上
 impl EscrowAccount {
     pub fn new(
         buyer: Pubkey,
@@ -139,7 +131,6 @@ impl EscrowAccount {
     }
     
     pub fn validate_required_signatures(&self) -> Result<()> {
-        // 基本验证逻辑
         let max_possible = 2 + if self.moderator.is_some() { 1 } else { 0 };
         require!(
             self.required_signatures > 0,

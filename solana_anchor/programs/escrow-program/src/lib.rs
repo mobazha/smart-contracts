@@ -14,7 +14,7 @@ declare_id!("E8vcELiVSEk8BLyHGY697muumtfqm8t8vEP4Mt5thYg7");
 pub mod escrow_program {
     use super::*;
 
-    // SOL托管指令
+    // SOL initialize instruction
     pub fn initialize_sol(
         ctx: Context<InitializeSol>,
         moderator: Option<Pubkey>,
@@ -41,7 +41,7 @@ pub mod escrow_program {
         instructions::release_sol::handler(ctx, payment_amounts, signatures)
     }
 
-    // SPL代币托管指令
+    // SPL token initialize instruction
     pub fn initialize_token(
         ctx: Context<InitializeToken>,
         moderator: Option<Pubkey>,

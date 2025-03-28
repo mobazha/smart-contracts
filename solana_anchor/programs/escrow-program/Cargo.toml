@@ -2,12 +2,12 @@
 name = "escrow-program"
 version = "0.1.0"
 edition = "2021"
-description = "时间锁定多签名托管程序"
+description = "Mobazha's Time-locked multi-signature escrow program"
 authors = ["Mobazha"]
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "escrow_program"
+name = "mobazha_escrow_program"
 
 [features]
 no-entrypoint = []
