@@ -276,6 +276,7 @@ describe("escrow-program 测试", () => {
           new BN(escrowAmount)
         )
         .accounts({
+          payer: buyer.publicKey,
           buyer: buyer.publicKey,
           seller: seller.publicKey,
           escrowAccount: escrowAccount,
@@ -362,6 +363,7 @@ describe("escrow-program 测试", () => {
           new BN(tokenAmount)
         )
         .accounts({
+          payer: buyer.publicKey,
           buyer: buyer.publicKey,
           seller: seller.publicKey,
           escrowAccount: tokenEscrowAccount,

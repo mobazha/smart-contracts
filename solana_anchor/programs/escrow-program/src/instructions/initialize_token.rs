@@ -13,14 +13,17 @@ use crate::{state::*, error::*, utils::{bytes_to_hex_string, format_timestamp}};
 )]
 pub struct InitializeToken<'info> {
     #[account(mut)]
-    pub buyer: Signer<'info>,
+    pub payer: Signer<'info>,
+    
+    /// CHECK: 买家账户，由客户端指定
+    pub buyer: AccountInfo<'info>,
     
     /// CHECK: 卖家账户，由客户端指定
     pub seller: AccountInfo<'info>,
     
     #[account(
         init,
-        payer = buyer,
+        payer = payer,
         space = TokenEscrow::LEN,
         seeds = [
             b"token_escrow",
@@ -46,7 +49,7 @@ pub struct InitializeToken<'info> {
     
     #[account(
         init_if_needed,
-        payer = buyer,
+        payer = payer,
         associated_token::mint = token_mint,
         associated_token::authority = escrow_account,
     )]

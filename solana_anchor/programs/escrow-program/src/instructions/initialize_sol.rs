@@ -12,14 +12,17 @@ use crate::utils::{bytes_to_hex_string, format_timestamp};
 )]
 pub struct InitializeSol<'info> {
     #[account(mut)]
-    pub buyer: Signer<'info>,
+    pub payer: Signer<'info>,
+    
+    /// CHECK: 买家账户，由客户端指定
+    pub buyer: AccountInfo<'info>,
     
     /// CHECK: 卖家账户，由客户端指定
     pub seller: AccountInfo<'info>,
     
     #[account(
         init,
-        payer = buyer,
+        payer = payer,
         space = SolEscrow::LEN,
         seeds = [
             b"sol_escrow",
@@ -67,7 +70,7 @@ pub fn handler(
         CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
             anchor_lang::system_program::Transfer {
-                from: ctx.accounts.buyer.to_account_info(),
+                from: ctx.accounts.payer.to_account_info(),
                 to: ctx.accounts.escrow_account.to_account_info(),
             },
         ),
