@@ -8,7 +8,7 @@ pub mod utils;
 
 use instructions::{initialize_sol::*, initialize_token::*, release_sol::*, release_token::*};
 
-declare_id!("E8vcELiVSEk8BLyHGY697muumtfqm8t8vEP4Mt5thYg7");
+declare_id!("25ecY9sGUkFyy78aYaSbdWGMgySSKZvPjQunf6Uk23qk");
 
 #[program]
 pub mod escrow_program {

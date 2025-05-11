@@ -8,13 +8,14 @@ use crate::{state::*, error::*, utils::{close_escrow_and_return_rent, process_re
     signatures: Vec<Vec<u8>>
 )]
 pub struct ReleaseToken<'info> {
-    #[account(
-        constraint = (initiator.key() == escrow_account.base.buyer || 
-                     initiator.key() == escrow_account.base.seller || 
-                     (escrow_account.base.moderator.is_some() && 
-                      initiator.key() == escrow_account.base.moderator.unwrap())) 
-                      @ EscrowError::Unauthorized
-    )]
+    // 验证发起者是否是买家、卖家或moderator（不用这个约束）
+    // #[account(
+    //     constraint = (initiator.key() == escrow_account.base.buyer || 
+    //                  initiator.key() == escrow_account.base.seller || 
+    //                  (escrow_account.base.moderator.is_some() && 
+    //                   initiator.key() == escrow_account.base.moderator.unwrap())) 
+    //                   @ EscrowError::Unauthorized
+    // )]
     pub initiator: Signer<'info>,
     
     #[account(
