@@ -52,4 +52,10 @@ pub enum EscrowError {
     
     #[msg("Ed25519 Instruction Not Found Or Invalid")]
     InvalidEd25519Instruction,
+
+    #[msg("Account Is Not Initialized")]
+    AccountNotInitialized,
+
+    #[msg("Invalid Amount")]
+    InvalidAmount,
 } 

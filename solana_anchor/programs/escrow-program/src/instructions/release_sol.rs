@@ -15,6 +15,7 @@ pub struct ReleaseSol<'info> {
     //                   initiator.key() == escrow_account.base.moderator.unwrap())) 
     //                   @ EscrowError::Unauthorized
     // )]
+    #[account(mut)]
     pub initiator: Signer<'info>,
     
     #[account(

@@ -43,9 +43,9 @@ pub struct InitializeToken<'info> {
     #[account(
         mut,
         token::mint = token_mint,
-        token::authority = buyer,
+        token::authority = payer,
     )]
-    pub buyer_token_account: Account<'info, TokenAccount>,
+    pub payer_token_account: Account<'info, TokenAccount>,
     
     #[account(
         init_if_needed,
@@ -94,9 +94,9 @@ pub fn handler(
 
     // 转移代币到escrow代币账户
     let transfer_to_escrow_ix = anchor_spl::token::Transfer {
-        from: ctx.accounts.buyer_token_account.to_account_info(),
+        from: ctx.accounts.payer_token_account.to_account_info(),
         to: ctx.accounts.escrow_token_account.to_account_info(),
-        authority: ctx.accounts.buyer.to_account_info(),
+        authority: ctx.accounts.payer.to_account_info(),
     };
     
     let escrow_transfer_ctx = CpiContext::new(
@@ -113,9 +113,10 @@ pub fn handler(
     let formatted_time = format_timestamp(unlock_time);
     
     msg!(
-        "Token escrow initialized: Buyer={}, Seller={}, ID=0x{}, Amount={} tokens, Required signatures={}, Unlock time={}",
+        "Token escrow initialized: Buyer={}, Seller={}, Payer={}, ID=0x{}, Amount={} tokens, Required signatures={}, Unlock time={}",
         ctx.accounts.buyer.key(),
         ctx.accounts.seller.key(),
+        ctx.accounts.payer.key(),
         id_hex,
         amount,
         required_signatures,
