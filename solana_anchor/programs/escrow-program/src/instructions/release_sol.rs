@@ -34,26 +34,26 @@ pub struct ReleaseSol<'info> {
     
     pub clock: Sysvar<'info, Clock>,
     pub system_program: Program<'info, System>,
+    pub rent: Sysvar<'info, Rent>,
     
-    /// CHECK: 买家账户
-    #[account(mut)]
+    /// CHECK: 买家账户，必须是托管账户中指定的买家
+    #[account(
+        mut,
+        constraint = buyer.key() == escrow_account.base.buyer @ EscrowError::ValidationFailed
+    )]
     pub buyer: AccountInfo<'info>,
     
-    /// CHECK: 接收方账户会在指令中验证
+    /// CHECK: 第一个接收方账户
     #[account(mut)]
-    pub recipient1: UncheckedAccount<'info>,
+    pub recipient1: AccountInfo<'info>,
     
-    /// CHECK: 第二个接收方账户，如果有的话
+    /// CHECK: 第二个接收方账户
     #[account(mut)]
     pub recipient2: Option<AccountInfo<'info>>,
     
-    /// CHECK: 第三个接收方账户，如果有的话
+    /// CHECK: 第三个接收方账户
     #[account(mut)]
     pub recipient3: Option<AccountInfo<'info>>,
-    
-    /// CHECK: 第四个接收方账户，如果有的话
-    #[account(mut)]
-    pub recipient4: Option<AccountInfo<'info>>,
     
     /// CHECK: Sysvar Instructions account
     #[account(address = solana_program::sysvar::instructions::ID)]
@@ -69,7 +69,6 @@ pub fn handler(
         Some(ctx.accounts.recipient1.key()),
         ctx.accounts.recipient2.as_ref().map(|acc| acc.key()),
         ctx.accounts.recipient3.as_ref().map(|acc| acc.key()),
-        ctx.accounts.recipient4.as_ref().map(|acc| acc.key()),
     ];
     
     process_release(
@@ -107,14 +106,11 @@ pub fn transfer_sol_to_recipients<'info>(
     recipients: &[Option<Pubkey>]
 ) -> Result<()> {
     let escrow_info = ctx.accounts.escrow_account.to_account_info();
-    
     let recipient1_info = ctx.accounts.recipient1.to_account_info();
-
     let recipient_accounts = [
         Some(&recipient1_info),  
         ctx.accounts.recipient2.as_ref(),
         ctx.accounts.recipient3.as_ref(),
-        ctx.accounts.recipient4.as_ref(),
     ];
     
     for (i, amount) in amounts.iter().enumerate() {
@@ -122,11 +118,34 @@ pub fn transfer_sol_to_recipients<'info>(
             if let Some(recipient) = recipient_accounts[i] {
                 require!(recipient.key() == recipient_key, EscrowError::InvalidRecipient);
                 
+                // 检查账户是否已初始化
+                if recipient.lamports() == 0 {
+                    // 创建账户，只支付必要的租金
+                    anchor_lang::system_program::create_account(
+                        CpiContext::new(
+                            ctx.accounts.system_program.to_account_info(),
+                            anchor_lang::system_program::CreateAccount {
+                                from: ctx.accounts.initiator.to_account_info(),
+                                to: recipient.clone(),
+                            },
+                        ),
+                        ctx.accounts.rent.minimum_balance(0),  // 只支付必要的租金
+                        0,
+                        &ctx.accounts.system_program.key(),
+                    )?;
+                    
+                    msg!(
+                        "Created account {} and transferring {} lamports from escrow", 
+                        recipient.key(),
+                        *amount
+                    );
+                }
+
                 let mut escrow_lamports = escrow_info.try_borrow_mut_lamports()?;
                 let mut recipient_lamports = recipient.try_borrow_mut_lamports()?;
                 
                 require!(**escrow_lamports >= *amount, EscrowError::InsufficientFunds);
-                
+
                 msg!(
                     "Transfer {} lamports to account {}", 
                     amount, 

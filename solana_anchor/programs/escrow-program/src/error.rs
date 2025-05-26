@@ -58,4 +58,7 @@ pub enum EscrowError {
 
     #[msg("Invalid Amount")]
     InvalidAmount,
+
+    #[msg("接收方数量无效")]
+    InvalidRecipientCount,
 } 

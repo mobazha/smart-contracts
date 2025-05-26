@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Token, TokenAccount, Transfer};
+use anchor_spl::token::{self, Token, TokenAccount, Transfer, Mint};
+use anchor_spl::associated_token::AssociatedToken;
 use crate::{state::*, error::*, utils::{close_escrow_and_return_rent, process_release, bytes_to_hex_string}};
 
 #[derive(Accounts)]
@@ -48,25 +49,47 @@ pub struct ReleaseToken<'info> {
     #[account(mut, address = escrow_account.base.buyer @ EscrowError::ValidationFailed)]
     pub buyer: AccountInfo<'info>,
     
-    /// CHECK: 接收方代币账户会在指令中验证
-    #[account(mut)]
-    pub recipient1: Account<'info, TokenAccount>,
+    /// CHECK: 第一个接收方owner
+    pub recipient1: AccountInfo<'info>,
+    /// CHECK: 第一个接收方ATA
+    #[account(
+        init_if_needed,
+        payer = initiator,
+        associated_token::mint = token_mint,
+        associated_token::authority = recipient1,
+    )]
+    pub recipient1_ata: Account<'info, TokenAccount>,
     
-    /// CHECK: 第二个接收方代币账户，如果有的话
-    #[account(mut)]
-    pub recipient2: Option<Account<'info, TokenAccount>>,
+    /// CHECK: 第二个接收方owner
+    pub recipient2: Option<AccountInfo<'info>>,
+    /// CHECK: 第二个接收方ATA
+    #[account(
+        init_if_needed,
+        payer = initiator,
+        associated_token::mint = token_mint,
+        associated_token::authority = recipient2,
+    )]
+    pub recipient2_ata: Option<Account<'info, TokenAccount>>,
     
-    /// CHECK: 第三个接收方代币账户，如果有的话
-    #[account(mut)]
-    pub recipient3: Option<Account<'info, TokenAccount>>,
-    
-    /// CHECK: 第四个接收方代币账户，如果有的话
-    #[account(mut)]
-    pub recipient4: Option<Account<'info, TokenAccount>>,
+    /// CHECK: 第三个接收方owner
+    pub recipient3: Option<AccountInfo<'info>>,
+    /// CHECK: 第三个接收方ATA
+    #[account(
+        init_if_needed,
+        payer = initiator,
+        associated_token::mint = token_mint,
+        associated_token::authority = recipient3,
+    )]
+    pub recipient3_ata: Option<Account<'info, TokenAccount>>,
     
     /// CHECK: Sysvar Instructions account
     #[account(address = solana_program::sysvar::instructions::ID)]
     pub sysvar_instructions: UncheckedAccount<'info>,
+
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub rent: Sysvar<'info, Rent>,
+    
+    pub token_mint: Account<'info, Mint>,
 }
 
 pub fn handler(
@@ -74,16 +97,23 @@ pub fn handler(
     payment_amounts: Vec<u64>,
     signatures: Vec<Vec<u8>>
 ) -> Result<()> {
+    // 验证接收方数量
+    require!(
+        payment_amounts.len() >= 1 && payment_amounts.len() <= 3,
+        EscrowError::InvalidRecipientCount
+    );
+    
     let recipient_accounts = [
-        Some(&ctx.accounts.recipient1),
-        ctx.accounts.recipient2.as_ref(),
-        ctx.accounts.recipient3.as_ref(),
-        ctx.accounts.recipient4.as_ref(),
+        Some(&ctx.accounts.recipient1_ata),
+        ctx.accounts.recipient2_ata.as_ref(),
+        ctx.accounts.recipient3_ata.as_ref(),
     ];
     
-    let recipient_pubkeys = recipient_accounts.iter()
-        .map(|acc| acc.map(|a| a.key()))
-        .collect::<Vec<Option<Pubkey>>>();
+    let recipient_pubkeys = [
+        Some(ctx.accounts.recipient1.key()),
+        ctx.accounts.recipient2.as_ref().map(|acc| acc.key()),
+        ctx.accounts.recipient3.as_ref().map(|acc| acc.key()),
+    ];
     
     let escrow_seed = &[
         b"token_escrow",
