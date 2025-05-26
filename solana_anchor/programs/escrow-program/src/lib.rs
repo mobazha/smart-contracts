@@ -67,4 +67,12 @@ pub mod escrow_program {
     ) -> Result<()> {
         instructions::release_token::handler(ctx, payment_amounts, signatures)
     }
+
+    pub fn release_token_after_timeout(
+        ctx: Context<ReleaseTokenAfterTimeout>,
+        payment_amounts: Vec<u64>,
+        signatures: Vec<Vec<u8>>
+    ) -> Result<()> {
+        instructions::release_token::handler_after_timeout(ctx, payment_amounts, signatures)
+    }
 } 

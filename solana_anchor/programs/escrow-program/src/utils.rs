@@ -2,15 +2,10 @@ use anchor_lang::prelude::*;
 use crate::{error::*, state::{MAX_PAYMENT_TARGETS, EscrowAccount}, ed25519};
 use chrono::{TimeZone, Utc};
 
-pub fn verify_payment_amounts<T>(
+pub fn verify_payment_amounts(
     payment_amounts: &[u64],
-    escrow_account: &T,
-) -> Result<()>
-where
-    T: AsRef<EscrowAccount>,
-{
-    let base = escrow_account.as_ref();
-    
+    escrow_account: &EscrowAccount,
+) -> Result<()> {
     require!(payment_amounts.len() <= MAX_PAYMENT_TARGETS, EscrowError::TooManyRecipients);
     require!(payment_amounts.len() > 0, EscrowError::InvalidPaymentParameters);
     
@@ -19,7 +14,7 @@ where
     }
     
     let total_amount: u64 = payment_amounts.iter().sum();
-    require!(total_amount <= base.amount, EscrowError::PaymentAmountExceedsEscrow);
+    require!(total_amount <= escrow_account.amount, EscrowError::PaymentAmountExceedsEscrow);
     
     Ok(())
 }
@@ -62,14 +57,14 @@ where
     
     let buyer = base.buyer;
     let seller = base.seller;
+
+    let all_signers = verify_ed25519_instructions(
+        instructions_sysvar,
+        signatures,
+        &message,
+    )?;
     
     if !time_expired {
-        let all_signers = verify_ed25519_instructions(
-            instructions_sysvar,
-            signatures,
-            &message,
-        )?;
-     
         // Filter valid signers
         let valid_signers: Vec<_> = all_signers.into_iter()
             .filter(|signer| {
@@ -86,12 +81,6 @@ where
         );
     } else {
         // Timelock has expired - only seller signature is required
-        let all_signers = verify_ed25519_instructions(
-            instructions_sysvar,
-            signatures,
-            &message,
-        )?;
-        
         require!(
             all_signers.contains(&seller),
             EscrowError::InvalidSigner
@@ -162,7 +151,7 @@ where
 {
     let base = escrow_account.as_ref();
     
-    verify_payment_amounts(payment_amounts, escrow_account)?;
+    verify_payment_amounts(payment_amounts, base)?;
     
     verify_signatures_with_timelock(
         escrow_account,
@@ -193,4 +182,37 @@ pub fn format_timestamp(timestamp: i64) -> String {
         },
         _ => format!("{} (invalid timestamp)", timestamp),
     }
+}
+
+pub fn verify_signatures_without_timelock(
+    escrow_account: &EscrowAccount,
+    signatures: &[Vec<u8>],
+    payment_amounts: &[u64],
+    recipients: &[Option<Pubkey>],
+    instructions_sysvar: &AccountInfo,
+) -> Result<()> {
+    let message = construct_message(&escrow_account.unique_id, recipients, payment_amounts);
+    
+    let all_signers = verify_ed25519_instructions(
+        instructions_sysvar,
+        signatures,
+        &message,
+    )?;
+    
+    // Filter valid signers
+    let valid_signers: Vec<_> = all_signers.into_iter()
+        .filter(|signer| {
+            *signer == escrow_account.buyer || 
+            *signer == escrow_account.seller || 
+            (escrow_account.moderator.is_some() && *signer == escrow_account.moderator.unwrap())
+        })
+        .collect();
+
+    // Check the number of valid signatures
+    require!(
+        valid_signers.len() >= escrow_account.required_signatures as usize,
+        EscrowError::InsufficientSignatures
+    );
+    
+    Ok(())
 }

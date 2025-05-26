@@ -61,4 +61,7 @@ pub enum EscrowError {
 
     #[msg("接收方数量无效")]
     InvalidRecipientCount,
+
+    #[msg("Timelock has not expired yet")]
+    TimelockNotExpired,
 } 
