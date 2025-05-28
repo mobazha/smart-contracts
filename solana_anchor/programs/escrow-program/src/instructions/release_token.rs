@@ -43,6 +43,15 @@ pub struct ReleaseToken<'info> {
     
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
+
+    /// CHECK: Sysvar Instructions account
+    #[account(address = solana_program::sysvar::instructions::ID)]
+    pub sysvar_instructions: UncheckedAccount<'info>,
+
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub rent: Sysvar<'info, Rent>,
+    
+    pub token_mint: Account<'info, Mint>,
     
     /// CHECK: 买家账户
     #[account(mut, address = escrow_account.base.buyer @ EscrowError::ValidationFailed)]
@@ -80,15 +89,6 @@ pub struct ReleaseToken<'info> {
         associated_token::authority = recipient3,
     )]
     pub recipient3_ata: Option<Account<'info, TokenAccount>>,
-    
-    /// CHECK: Sysvar Instructions account
-    #[account(address = solana_program::sysvar::instructions::ID)]
-    pub sysvar_instructions: UncheckedAccount<'info>,
-
-    pub associated_token_program: Program<'info, AssociatedToken>,
-    pub rent: Sysvar<'info, Rent>,
-    
-    pub token_mint: Account<'info, Mint>,
 }
 
 pub fn handler(
@@ -238,34 +238,79 @@ pub struct ReleaseTokenAfterTimeout<'info> {
         constraint = escrow_token_account.owner == escrow_account.key() @ EscrowError::ValidationFailed,
     )]
     pub escrow_token_account: Account<'info, TokenAccount>,
-    
-    pub clock: Sysvar<'info, Clock>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
-    
-    /// CHECK: 买家账户
-    #[account(mut, address = escrow_account.base.buyer @ EscrowError::ValidationFailed)]
-    pub buyer: AccountInfo<'info>,
-    
-    /// CHECK: 接收方owner
-    pub recipient: AccountInfo<'info>,
-    /// CHECK: 接收方ATA
-    #[account(
-        init_if_needed,
-        payer = initiator,
-        associated_token::mint = token_mint,
-        associated_token::authority = recipient,
-    )]
-    pub recipient_ata: Account<'info, TokenAccount>,
-    
+
     /// CHECK: Sysvar Instructions account
     #[account(address = solana_program::sysvar::instructions::ID)]
     pub sysvar_instructions: UncheckedAccount<'info>,
 
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub rent: Sysvar<'info, Rent>,
-    
     pub token_mint: Account<'info, Mint>,
+
+    /// CHECK: 买家账户
+    #[account(mut, address = escrow_account.base.buyer @ EscrowError::ValidationFailed)]
+    pub buyer: AccountInfo<'info>,
+
+    pub clock: Sysvar<'info, Clock>,
+    
+    /// CHECK: 第一个接收方owner
+    pub recipient1: AccountInfo<'info>,
+    /// CHECK: 第一个接收方ATA
+    #[account(
+        init_if_needed,
+        payer = initiator,
+        associated_token::mint = token_mint,
+        associated_token::authority = recipient1,
+    )]
+    pub recipient1_ata: Account<'info, TokenAccount>,
+    
+    /// CHECK: 第二个接收方owner
+    pub recipient2: Option<AccountInfo<'info>>,
+    /// CHECK: 第二个接收方ATA
+    #[account(
+        init_if_needed,
+        payer = initiator,
+        associated_token::mint = token_mint,
+        associated_token::authority = recipient2,
+    )]
+    pub recipient2_ata: Option<Account<'info, TokenAccount>>,
+}
+
+fn transfer_tokens_to_recipients_after_timeout<'info>(
+    ctx: &Context<ReleaseTokenAfterTimeout<'info>>,
+    amounts: &[u64],
+    recipients: &[Option<&Account<'info, TokenAccount>>],
+    escrow_seed: &[&[u8]],
+) -> Result<()> {
+    for recipient in recipients.iter().flatten() {
+        require!(
+            recipient.mint == ctx.accounts.escrow_account.mint,
+            EscrowError::TokenMintMismatch
+        );
+    }
+    
+    for (i, amount) in amounts.iter().enumerate() {
+        if let Some(recipient) = recipients[i] {
+            msg!("Transfer {} tokens to account {}", amount, recipient.key());
+            
+            token::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.escrow_token_account.to_account_info(),
+                        to: recipient.to_account_info(),
+                        authority: ctx.accounts.escrow_account.to_account_info(),
+                    },
+                    &[escrow_seed],
+                ),
+                *amount,
+            )?;
+        }
+    }
+    
+    Ok(())
 }
 
 pub fn handler_after_timeout(
@@ -275,9 +320,19 @@ pub fn handler_after_timeout(
 ) -> Result<()> {
     // 验证接收方数量
     require!(
-        payment_amounts.len() == 1,
+        payment_amounts.len() >= 1 && payment_amounts.len() <= 2,
         EscrowError::InvalidRecipientCount
     );
+    
+    let recipient_accounts = [
+        Some(&ctx.accounts.recipient1_ata),
+        ctx.accounts.recipient2_ata.as_ref(),
+    ];
+    
+    let recipient_pubkeys = [
+        Some(ctx.accounts.recipient1.key()),
+        ctx.accounts.recipient2.as_ref().map(|acc| acc.key()),
+    ];
     
     let escrow_seed = &[
         b"token_escrow",
@@ -300,7 +355,7 @@ pub fn handler_after_timeout(
     // 验证签名
     let message = construct_message(
         &ctx.accounts.escrow_account.base.unique_id,
-        &[Some(ctx.accounts.recipient.key())],
+        &recipient_pubkeys,
         &payment_amounts
     );
     
@@ -316,17 +371,11 @@ pub fn handler_after_timeout(
     );
     
     // 转账代币
-    token::transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.escrow_token_account.to_account_info(),
-                to: ctx.accounts.recipient_ata.to_account_info(),
-                authority: ctx.accounts.escrow_account.to_account_info(),
-            },
-            &[escrow_seed],
-        ),
-        payment_amounts[0],
+    transfer_tokens_to_recipients_after_timeout(
+        &ctx,
+        &payment_amounts,
+        &recipient_accounts,
+        escrow_seed
     )?;
     
     // 关闭代币账户

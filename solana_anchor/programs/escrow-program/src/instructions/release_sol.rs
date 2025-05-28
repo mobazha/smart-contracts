@@ -35,6 +35,10 @@ pub struct ReleaseSol<'info> {
     pub clock: Sysvar<'info, Clock>,
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
+
+    /// CHECK: Sysvar Instructions account
+    #[account(address = solana_program::sysvar::instructions::ID)]
+    pub sysvar_instructions: UncheckedAccount<'info>,
     
     /// CHECK: 买家账户，必须是托管账户中指定的买家
     #[account(
@@ -54,10 +58,6 @@ pub struct ReleaseSol<'info> {
     /// CHECK: 第三个接收方账户
     #[account(mut)]
     pub recipient3: Option<AccountInfo<'info>>,
-    
-    /// CHECK: Sysvar Instructions account
-    #[account(address = solana_program::sysvar::instructions::ID)]
-    pub sysvar_instructions: UncheckedAccount<'info>,
 }
 
 pub fn handler(
