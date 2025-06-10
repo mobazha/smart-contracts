@@ -58,8 +58,7 @@ interface IEscrow {
         bytes32[] calldata sigR,
         bytes32[] calldata sigS,
         bytes32 scriptHash,
-        PayData calldata payData,
-        OrderFinishType finishType
+        PayData calldata payData
     )
         external;
 

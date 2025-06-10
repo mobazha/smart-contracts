@@ -98,46 +98,4 @@ library ScriptHashCalculator {
             );
         }
     }
-
-    function calculatePlatformFee(
-        uint256 amount,
-        uint8 platformFeePercentage,
-        bool isToken,
-        address tokenAddress
-    )
-        public
-        view
-        returns (uint256)
-    {
-        // 1) Since currently we cannot get exchange rate in contract, we cannot evaluate
-        //    min and max fee for mainnet coin (ETH). We simply use 1% for the fee.
-        // 2) For USDT and USDC tokens, pay 1% of vendor funds to the platform, 
-        //    with 0.5 USD in minimum and 100 USD in maximum.
-
-        if (platformFeePercentage == 0) {
-            return 0;
-        }
-
-        uint256 valuePlatform = amount * platformFeePercentage / 100;
-        if (!isToken) {
-            return valuePlatform;
-        }
-
-        ITokenContract token = ITokenContract(tokenAddress);
-
-        // Pay 1% of vendor funds to the platform, 0.5 USD in minimum and 100 USD in maximum.
-        uint256 minFee = 1 * 10**(token.decimals()) / 2;
-        uint256 maxFee = 100 * 10**(token.decimals());
-
-        // If amount is less than minFee, use 1%
-        
-        if (amount > minFee) {
-            if (valuePlatform < minFee) {
-                valuePlatform = minFee;
-            } else if (valuePlatform > maxFee) {
-                valuePlatform = maxFee;
-            }
-        }
-        return valuePlatform;
-    }
 }

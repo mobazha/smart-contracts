@@ -11,16 +11,3 @@ struct PayData {
     // List of user roles of the destinations
     Role[] roles;
 }
-
-enum OrderFinishType {
-    // Buyer has completed the order
-    COMPLETE,
-    // Vendor cancel the order
-    CANCEL,
-    // Vendor refunded the order
-    REFUND,
-    // The winning party has accepted the dispute and it is now complete
-    RESOLVED,
-    // For executeAndClaim in MGLRewards
-    OTHER
-}
