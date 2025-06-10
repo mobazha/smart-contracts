@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MBZ
 pragma solidity ^0.8.22;
 
-enum Role {BUYER, VENDOR, MODERATOR}
+enum Role {BUYER, VENDOR, MODERATOR, PLATFORM}
 
 struct PayData {
     // List of addresses who will receive funds

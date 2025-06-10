@@ -396,8 +396,7 @@ contract MGLRewards is Ownable {
             sigR,
             sigS,
             scriptHash,
-            payData,
-            OrderFinishType.OTHER
+            payData
         );
 
         //2. Claim Reward

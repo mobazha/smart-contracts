@@ -13,8 +13,8 @@
     "test:bsc": "truffle test --config=truffle-config.js --network bscTestnet",
     "compile:bsc": "truffle compile --config=truffle-config.js",
     "migrate:bsc": "truffle migrate --config=truffle-config.js --network bscTestnet",
-    "migrate:polygon": "truffle migrate --config=truffle-config.js --network polygonTestnet",
-    "migrate:conflux": "truffle migrate --config=truffle-config.js --network confluxTestnet"
+    "migrate:polygon": "truffle migrate --config=truffle-config.js --network polygonMainnet",
+    "migrate:conflux": "truffle migrate --config=truffle-config.js --network confluxMainnet"
   },
   "repository": {},
   "keywords": [
@@ -27,7 +27,16 @@
   "devDependencies": {
     "@chainsafe/truffle-plugin-abigen": "^0.0.2",
     "@openzeppelin/contracts": "^4.9.0",
-    "@truffle/hdwallet-provider": "^1.4.2",
-    "dotenv": "^9.0.0"
+    "@truffle/hdwallet-provider": "^1.7.0",
+    "@types/chai": "^5.2.0",
+    "@types/mocha": "^10.0.10",
+    "dotenv": "^9.0.2"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.0",
+    "@noble/ed25519": "^2.2.3",
+    "@solana/spl-token": "^0.4.13",
+    "@solana/web3.js": "^1.98.0",
+    "chai": "^5.2.0"
   }
 }
