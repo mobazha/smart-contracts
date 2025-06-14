@@ -25,14 +25,7 @@ contract Escrow {
     event Executed(
         bytes32 indexed scriptHash,
         address payable[] destinations,
-        uint256[] amounts,
-        Role[] roles
-    );
-
-    event FundAdded(
-        bytes32 indexed scriptHash,
-        address indexed from,
-        uint256 valueAdded
+        uint256[] amounts
     );
 
     event Funded(
@@ -350,63 +343,6 @@ contract Escrow {
     }
 
     /**
-    * @notice Allows the buyer in an Mobazha transaction to add more ETH to
-    * an existing transaction
-    * @param scriptHash The scriptHash of the Mobazha transaction to which
-    * funds will be added
-    */
-    function addFundsToTransaction(
-        bytes32 scriptHash
-    )
-        external
-        payable
-        transactionExists(scriptHash)
-        inFundedState(scriptHash)
-        checkTransactionType(scriptHash, TransactionType.ETH)
-        onlyBuyer(scriptHash)
-
-    {
-        require(msg.value > 0, "Value must be greater than 0.");
-
-        transactions[scriptHash].value += msg.value;
-
-        emit FundAdded(scriptHash, msg.sender, msg.value);
-    }
-
-    /**
-    * @notice Allows the buyer in an Mobazha transaction to add more ERC20
-    * tokens to an existing transaction
-    * @param scriptHash The scriptHash of the Mobazha transaction to which
-    * funds will be added
-    * @param value The number of tokens to be added
-    */
-    function addTokensToTransaction(
-        bytes32 scriptHash,
-        uint256 value
-    )
-        external
-        transactionExists(scriptHash)
-        inFundedState(scriptHash)
-        checkTransactionType(scriptHash, TransactionType.TOKEN)
-        onlyBuyer(scriptHash)
-    {
-        require(value > 0, "Value must be greater than 0.");
-
-        ITokenContract token = ITokenContract(
-            transactions[scriptHash].tokenAddress
-        );
-
-        transactions[scriptHash].value += value;
-
-        emit FundAdded(scriptHash, msg.sender, value);
-
-        require(
-            token.transferFrom(msg.sender, address(this), value),
-            "Token transfer failed, maybe you did not approve the escrow contract to spend on behalf of the buyer"
-        );
-    }
-
-    /**
     * @notice Returns an array of scriptHashes associated with trades in which
     * a given address was listed as a buyer or a seller
     * @param partyAddress The address to look up
@@ -430,7 +366,7 @@ contract Escrow {
     * @param sigR Array containing R component of all the signatures
     * @param sigS Array containing S component of all the signatures
     * @param scriptHash ScriptHash of the transaction
-    * @param payData Struct containing target destinations, amounts and user roles
+    * @param payData Struct containing target destinations and amounts
     */
     function execute(
         uint8[] calldata sigV,
@@ -450,10 +386,6 @@ contract Escrow {
         require(
             payData.destinations.length == payData.amounts.length,
             "Number of destinations must match number of values sent"
-        );
-        require(
-            payData.destinations.length == payData.roles.length,
-            "Number of destinations must match number of user roles"
         );
 
         for (uint256 i = 0; i < payData.destinations.length; i++) {
@@ -489,7 +421,7 @@ contract Escrow {
             payData
         );
 
-        emit Executed(scriptHash, payData.destinations, payData.amounts, payData.roles);
+        emit Executed(scriptHash, payData.destinations, payData.amounts);
 
         require(
             transactions[scriptHash].value >= transactions[scriptHash].released,
@@ -557,7 +489,7 @@ contract Escrow {
     /**
     * @notice Method to transfer funds to a set of destinations
     * @param scriptHash Hash identifying the Mobazha transaction
-    * @param payData Struct containing target destinations, amounts and user roles
+    * @param payData Struct containing target destinations and amounts
     * @return the total amount of funds that were paid out
     */
     function _transferFunds(

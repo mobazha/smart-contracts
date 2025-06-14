@@ -45,14 +45,6 @@ interface IEscrow {
     )
         external;
 
-    function addFundsToTransaction(bytes32 scriptHash) external payable;
-
-    function addTokensToTransaction(
-        bytes32 scriptHash,
-        uint256 value
-    )
-        external;
-
     function execute(
         uint8[] calldata sigV,
         bytes32[] calldata sigR,
