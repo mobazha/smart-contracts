@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MBZ
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.22;
 
 import "./Common.sol";
@@ -117,37 +117,8 @@ contract Escrow {
         _;
     }
 
-    //Address of the reward Token to be distributed to the users
-    ITokenContract public mbzToken;
-
-    /**
-    * @dev Add reward token contract address at the time of deployment
-    * @param mbzTokenAddress Address of the reward token contract
-    */
-    constructor(
-        address mbzTokenAddress
-    )
-        nonZeroAddress(mbzTokenAddress)
-    {
+    constructor() {
         _owner = msg.sender;
-
-        mbzToken = ITokenContract(mbzTokenAddress);
-    }
-
-    /**
-    * @dev Allows the owner of the contract to transfer all remaining MBZ tokens to
-    * an address of their choosing.
-    * @param receiver The receiver's address
-    */
-    function transferRemainingMBZTokens(
-        address receiver
-    )
-        external
-        nonZeroAddress(receiver)
-    {
-        require(msg.sender == _owner, "Not the owner");
-
-        mbzToken.transfer(receiver, mbzToken.balanceOf(address(this)));
     }
 
     /**
@@ -446,8 +417,8 @@ contract Escrow {
         bytes32[] memory sigR,
         bytes32[] memory sigS,
         bytes32 scriptHash,
-        address payable[] memory destinations,
-        uint256[] memory amounts
+        address payable[] calldata destinations,
+        uint256[] calldata amounts
     )
         private
     {
@@ -494,7 +465,7 @@ contract Escrow {
     */
     function _transferFunds(
         bytes32 scriptHash,
-        PayData memory payData
+        PayData calldata payData
     )
         private
         returns (uint256)
@@ -545,8 +516,8 @@ contract Escrow {
         bytes32[] memory sigR,
         bytes32[] memory sigS,
         bytes32 scriptHash,
-        address payable[] memory destinations,
-        uint256[] memory amounts
+        address payable[] calldata destinations,
+        uint256[] calldata amounts
     )
         private
     {
@@ -560,7 +531,6 @@ contract Escrow {
         );
 
         for (uint256 i = 0; i < sigR.length; i++) {
-
             address recovered = ecrecover(
                 txHash,
                 sigV[i],
@@ -719,8 +689,8 @@ contract Escrow {
     */
     function getTransactionHash(
         bytes32 scriptHash,
-        address payable[] memory destinations,
-        uint256[] memory amounts
+        address payable[] calldata destinations,
+        uint256[] calldata amounts
     )
         public
         view

@@ -4,19 +4,19 @@ skip-lint = false
 init-if-needed = true
 
 [programs.localnet]
-escrow_program = "E8vcELiVSEk8BLyHGY697muumtfqm8t8vEP4Mt5thYg7"
+escrow_program = "25ecY9sGUkFyy78aYaSbdWGMgySSKZvPjQunf6Uk23qk"
 
 [programs.devnet]
-escrow_program = "E8vcELiVSEk8BLyHGY697muumtfqm8t8vEP4Mt5thYg7"
+escrow_program = "25ecY9sGUkFyy78aYaSbdWGMgySSKZvPjQunf6Uk23qk"
 
 [programs.mainnet]
-escrow_program = "E8vcELiVSEk8BLyHGY697muumtfqm8t8vEP4Mt5thYg7"
+escrow_program = "25ecY9sGUkFyy78aYaSbdWGMgySSKZvPjQunf6Uk23qk"
 
 [registry]
 url = "https://anchor.projectserum.com"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

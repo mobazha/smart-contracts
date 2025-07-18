@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MBZ
+// SPDX-License-Identifier: BUSL-1.1
 /* solium-disable security/no-block-members */
 
 pragma solidity ^0.8.22;
