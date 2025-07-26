@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /**
  * @title RwaMarketplace
  * @notice 支持多卖家多Token多币种的RWA分销平台，平台管理权限建议由多签钱包（如Gnosis Safe）持有，所有管理操作需多签共同签名。
- * @dev KYC校验可动态开关，平台方可根据合规需求决定是否强制校验KYC。
+ * @dev KYC校验可动态开关，平台方可根据合规需求决定是否强制校验KYC。白名单功能可根据业务需求灵活配置。
  */
 interface IPriceOracle {
     function getPrice(address rwaToken, address payToken) external view returns (uint256);
@@ -28,6 +28,11 @@ contract RwaMarketplace {
     bool public paused;
     bool public kycRequired; // KYC校验开关
 
+    // 白名单开关
+    bool public sellerWhitelistRequired = true; // 卖家白名单开关
+    bool public rwaTokenWhitelistRequired = true; // RWA Token白名单开关
+    bool public payTokenWhitelistRequired = false; // 支付币种白名单开关（默认关闭）
+
     // 白名单
     mapping(address => bool) public allowedSellers;
     mapping(address => bool) public allowedRwaTokens;
@@ -48,6 +53,7 @@ contract RwaMarketplace {
     event PayTokenWhitelisted(address payToken, bool allowed);
     event KycStatusChanged(address user, bool passed);
     event KycRequiredChanged(bool required);
+    event WhitelistRequiredChanged(string whitelistType, bool required);
     event PriceOracleChanged(address newOracle);
     event Paused(bool status);
 
@@ -91,6 +97,19 @@ contract RwaMarketplace {
         kycRequired = required;
         emit KycRequiredChanged(required);
     }
+    // 白名单开关管理
+    function setSellerWhitelistRequired(bool required) external onlyPlatform {
+        sellerWhitelistRequired = required;
+        emit WhitelistRequiredChanged("seller", required);
+    }
+    function setRwaTokenWhitelistRequired(bool required) external onlyPlatform {
+        rwaTokenWhitelistRequired = required;
+        emit WhitelistRequiredChanged("rwaToken", required);
+    }
+    function setPayTokenWhitelistRequired(bool required) external onlyPlatform {
+        payTokenWhitelistRequired = required;
+        emit WhitelistRequiredChanged("payToken", required);
+    }
     // 白名单管理
     function setSellerWhitelist(address seller, bool allowed) external onlyPlatform {
         allowedSellers[seller] = allowed;
@@ -104,6 +123,25 @@ contract RwaMarketplace {
         allowedPayTokens[payToken] = allowed;
         emit PayTokenWhitelisted(payToken, allowed);
     }
+    // 批量白名单管理
+    function batchSetSellerWhitelist(address[] calldata sellers, bool allowed) external onlyPlatform {
+        for (uint i = 0; i < sellers.length; i++) {
+            allowedSellers[sellers[i]] = allowed;
+            emit SellerWhitelisted(sellers[i], allowed);
+        }
+    }
+    function batchSetRwaTokenWhitelist(address[] calldata rwaTokens, bool allowed) external onlyPlatform {
+        for (uint i = 0; i < rwaTokens.length; i++) {
+            allowedRwaTokens[rwaTokens[i]] = allowed;
+            emit RwaTokenWhitelisted(rwaTokens[i], allowed);
+        }
+    }
+    function batchSetPayTokenWhitelist(address[] calldata payTokens, bool allowed) external onlyPlatform {
+        for (uint i = 0; i < payTokens.length; i++) {
+            allowedPayTokens[payTokens[i]] = allowed;
+            emit PayTokenWhitelisted(payTokens[i], allowed);
+        }
+    }
     // KYC管理
     function setKycStatus(address user, bool passed) external onlyPlatform {
         kycPassed[user] = passed;
@@ -112,11 +150,17 @@ contract RwaMarketplace {
 
     // 卖家上架RWA Token，设置支持的支付币种
     function listRwaToken(address rwaToken, address[] calldata payTokens) external notPaused {
-        require(allowedSellers[msg.sender], "Seller not whitelisted");
-        require(allowedRwaTokens[rwaToken], "RWA Token not whitelisted");
+        if (sellerWhitelistRequired) {
+            require(allowedSellers[msg.sender], "Seller not whitelisted");
+        }
+        if (rwaTokenWhitelistRequired) {
+            require(allowedRwaTokens[rwaToken], "RWA Token not whitelisted");
+        }
         RwaSale storage sale = sales[msg.sender][rwaToken];
         for (uint i = 0; i < payTokens.length; i++) {
-            require(allowedPayTokens[payTokens[i]], "Pay token not whitelisted");
+            if (payTokenWhitelistRequired) {
+                require(allowedPayTokens[payTokens[i]], "Pay token not whitelisted");
+            }
             sale.allowedPayTokens[payTokens[i]] = true;
         }
         emit Listed(msg.sender, rwaToken, payTokens);
@@ -124,8 +168,12 @@ contract RwaMarketplace {
 
     // 卖家充值RWA Token
     function depositRwaToken(address rwaToken, uint256 amount) external notPaused {
-        require(allowedSellers[msg.sender], "Seller not whitelisted");
-        require(allowedRwaTokens[rwaToken], "RWA Token not whitelisted");
+        if (sellerWhitelistRequired) {
+            require(allowedSellers[msg.sender], "Seller not whitelisted");
+        }
+        if (rwaTokenWhitelistRequired) {
+            require(allowedRwaTokens[rwaToken], "RWA Token not whitelisted");
+        }
         require(amount > 0, "Amount must be > 0");
         IERC20(rwaToken).transferFrom(msg.sender, address(this), amount);
         sales[msg.sender][rwaToken].available += amount;
@@ -134,9 +182,15 @@ contract RwaMarketplace {
 
     // 买家购买
     function buyRwaToken(address seller, address rwaToken, uint256 rwaAmount, address payToken) external notPaused {
-        require(allowedSellers[seller], "Seller not whitelisted");
-        require(allowedRwaTokens[rwaToken], "RWA Token not whitelisted");
-        require(allowedPayTokens[payToken], "Pay token not whitelisted");
+        if (sellerWhitelistRequired) {
+            require(allowedSellers[seller], "Seller not whitelisted");
+        }
+        if (rwaTokenWhitelistRequired) {
+            require(allowedRwaTokens[rwaToken], "RWA Token not whitelisted");
+        }
+        if (payTokenWhitelistRequired) {
+            require(allowedPayTokens[payToken], "Pay token not whitelisted");
+        }
         if (kycRequired) {
             require(kycPassed[msg.sender], "Buyer not KYC passed");
         }
