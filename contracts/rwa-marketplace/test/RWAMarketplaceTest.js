@@ -116,9 +116,13 @@ describe("RWAMarketplace", function () {
       // 买家授权Marketplace使用USDT
       await mockUSDT.connect(buyer).approve(marketplaceAddress, USDT_AMOUNT);
 
+      // 生成唯一的订单ID
+      const orderId = ethers.keccak256(ethers.toUtf8Bytes("ORDER_001"));
+
       // 买家创建订单并付款
       await expect(
         marketplace.connect(buyer).createOrderAndPay(
+          orderId,
           sellerAddress,
           rwaTokenAddress,
           mockUSDTAddress, // USDT支付
@@ -130,7 +134,7 @@ describe("RWAMarketplace", function () {
       ).to.emit(marketplace, "OrderCreated");
 
       // 验证订单创建
-      const order = await marketplace.getOrder(1);
+      const order = await marketplace.getOrder(orderId);
       expect(order.buyer).to.equal(buyerAddress);
       expect(order.seller).to.equal(sellerAddress);
       expect(order.rwaTokenAddress).to.equal(rwaTokenAddress);
@@ -158,8 +162,12 @@ describe("RWAMarketplace", function () {
       // 买家授权Marketplace使用USDT
       await mockUSDT.connect(buyer).approve(marketplaceAddress, USDT_AMOUNT);
 
+      // 生成唯一的订单ID
+      const orderId = ethers.keccak256(ethers.toUtf8Bytes("ORDER_002"));
+
       // 买家创建订单并付款
       await marketplace.connect(buyer).createOrderAndPay(
+        orderId,
         sellerAddress,
         rwaTokenAddress,
         mockUSDTAddress,
@@ -176,11 +184,11 @@ describe("RWAMarketplace", function () {
       await rwaToken.connect(seller).approve(marketplaceAddress, ORDER_AMOUNT);
 
       // 卖家发货并完成交易
-      await expect(marketplace.connect(seller).shipAndComplete(1))
+      await expect(marketplace.connect(seller).shipAndComplete(orderId))
         .to.emit(marketplace, "OrderCompleted");
 
       // 验证订单状态
-      const order = await marketplace.getOrder(1);
+      const order = await marketplace.getOrder(orderId);
       expect(order.status).to.equal(1); // COMPLETED
 
       // 验证买家收到RWA Token
@@ -205,9 +213,13 @@ describe("RWAMarketplace", function () {
       // 买家授权Marketplace使用USDT
       await mockUSDT.connect(buyer).approve(marketplaceAddress, USDT_AMOUNT);
 
+      // 生成唯一的订单ID
+      const orderId = ethers.keccak256(ethers.toUtf8Bytes("ORDER_003"));
+
       // 尝试同时使用USDT和ETH付款应该失败
       await expect(
         marketplace.connect(buyer).createOrderAndPay(
+          orderId,
           sellerAddress,
           rwaTokenAddress,
           mockUSDTAddress,
@@ -225,9 +237,13 @@ describe("RWAMarketplace", function () {
       const rwaTokenAddress = await rwaToken.getAddress();
       const mockUSDTAddress = await mockUSDT.getAddress();
 
+      // 生成唯一的订单ID
+      const orderId = ethers.keccak256(ethers.toUtf8Bytes("ORDER_004"));
+
       // 尝试使用ETH但指定代币地址应该失败
       await expect(
         marketplace.connect(buyer).createOrderAndPay(
+          orderId,
           sellerAddress,
           rwaTokenAddress,
           mockUSDTAddress, // 指定代币地址

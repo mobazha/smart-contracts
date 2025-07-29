@@ -41,8 +41,12 @@ contract RWAMarketplaceTest {
     }
     
     function testCreateOrderAndPay() public {
+        // 生成唯一的订单ID
+        bytes32 orderId = keccak256(abi.encodePacked("ORDER_001"));
+        
         // 买家创建订单并付款
-        uint256 orderId = marketplace.createOrderAndPay{value: PAYMENT_AMOUNT}(
+        marketplace.createOrderAndPay{value: PAYMENT_AMOUNT}(
+            orderId,
             seller,
             address(rwaToken),
             address(0), // ETH支付
@@ -50,9 +54,6 @@ contract RWAMarketplaceTest {
             ORDER_AMOUNT,
             PAYMENT_AMOUNT
         );
-        
-        // 验证订单创建
-        require(orderId == 1, "Order ID should be 1");
         
         // 获取订单信息
         RWAMarketplace.Order memory order = marketplace.getOrder(orderId);
@@ -64,8 +65,12 @@ contract RWAMarketplaceTest {
     }
     
     function testShipAndComplete() public {
+        // 生成唯一的订单ID
+        bytes32 orderId = keccak256(abi.encodePacked("ORDER_002"));
+        
         // 买家创建订单并付款
-        uint256 orderId = marketplace.createOrderAndPay{value: PAYMENT_AMOUNT}(
+        marketplace.createOrderAndPay{value: PAYMENT_AMOUNT}(
+            orderId,
             seller,
             address(rwaToken),
             address(0), // ETH支付
@@ -92,8 +97,12 @@ contract RWAMarketplaceTest {
     }
     
     function testCancelOrder() public {
+        // 生成唯一的订单ID
+        bytes32 orderId = keccak256(abi.encodePacked("ORDER_003"));
+        
         // 买家创建订单并付款
-        uint256 orderId = marketplace.createOrderAndPay{value: PAYMENT_AMOUNT}(
+        marketplace.createOrderAndPay{value: PAYMENT_AMOUNT}(
+            orderId,
             seller,
             address(rwaToken),
             address(0), // ETH支付
@@ -113,8 +122,13 @@ contract RWAMarketplaceTest {
 
     
     function testGetBuyerOrders() public {
+        // 生成唯一的订单ID
+        bytes32 orderId1 = keccak256(abi.encodePacked("ORDER_004"));
+        bytes32 orderId2 = keccak256(abi.encodePacked("ORDER_005"));
+        
         // 买家创建多个订单
         marketplace.createOrderAndPay{value: PAYMENT_AMOUNT}(
+            orderId1,
             seller,
             address(rwaToken),
             address(0),
@@ -124,6 +138,7 @@ contract RWAMarketplaceTest {
         );
         
         marketplace.createOrderAndPay{value: PAYMENT_AMOUNT}(
+            orderId2,
             seller,
             address(rwaToken),
             address(0),
@@ -133,15 +148,19 @@ contract RWAMarketplaceTest {
         );
         
         // 获取买家订单
-        uint256[] memory buyerOrders = marketplace.getBuyerOrders(buyer);
+        bytes32[] memory buyerOrders = marketplace.getBuyerOrders(buyer);
         require(buyerOrders.length == 2, "Buyer should have 2 orders");
-        require(buyerOrders[0] == 1, "First order ID should be 1");
-        require(buyerOrders[1] == 2, "Second order ID should be 2");
+        require(buyerOrders[0] == orderId1, "First order ID should match");
+        require(buyerOrders[1] == orderId2, "Second order ID should match");
     }
     
     function testGetSellerOrders() public {
+        // 生成唯一的订单ID
+        bytes32 orderId = keccak256(abi.encodePacked("ORDER_006"));
+        
         // 买家创建订单
         marketplace.createOrderAndPay{value: PAYMENT_AMOUNT}(
+            orderId,
             seller,
             address(rwaToken),
             address(0),
@@ -151,9 +170,9 @@ contract RWAMarketplaceTest {
         );
         
         // 获取卖家订单
-        uint256[] memory sellerOrders = marketplace.getSellerOrders(seller);
+        bytes32[] memory sellerOrders = marketplace.getSellerOrders(seller);
         require(sellerOrders.length == 1, "Seller should have 1 order");
-        require(sellerOrders[0] == 1, "Order ID should be 1");
+        require(sellerOrders[0] == orderId, "Order ID should match");
     }
     
     function testPlatformFee() public {
@@ -178,8 +197,12 @@ contract RWAMarketplaceTest {
         // 初始订单计数器
         require(marketplace.orderCounter() == 0, "Initial order counter should be 0");
         
+        // 生成唯一的订单ID
+        bytes32 orderId = keccak256(abi.encodePacked("ORDER_007"));
+        
         // 创建订单
         marketplace.createOrderAndPay{value: PAYMENT_AMOUNT}(
+            orderId,
             seller,
             address(rwaToken),
             address(0),

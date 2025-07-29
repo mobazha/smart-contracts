@@ -31,7 +31,7 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
         address buyerReceiveAddress;      // 买家接收RWA Token的地址
         uint256 rwaTokenAmount;           // RWA Token数量
         uint256 paymentAmount;            // 支付金额
-        uint256 orderId;                  // 订单ID
+        bytes32 orderId;                  // 订单ID (外部传入)
         uint256 createdAt;                // 创建时间
         uint256 completedAt;              // 完成时间
         OrderStatus status;               // 订单状态
@@ -39,7 +39,7 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
 
     // 事件定义
     event OrderCreated(
-        uint256 indexed orderId,
+        bytes32 indexed orderId,
         address indexed buyer,
         address indexed seller,
         address rwaTokenAddress,
@@ -49,14 +49,14 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
     );
 
     event OrderCompleted(
-        uint256 indexed orderId,
+        bytes32 indexed orderId,
         address indexed buyer,
         address indexed seller,
         uint256 completedAt
     );
 
     event OrderCancelled(
-        uint256 indexed orderId,
+        bytes32 indexed orderId,
         address indexed cancelledBy,
         uint256 cancelledAt
     );
@@ -73,28 +73,28 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
     uint256 public constant FEE_DENOMINATOR = 10000;
     
     // 映射
-    mapping(uint256 => Order) public orders;
-    mapping(address => uint256[]) public buyerOrders;
-    mapping(address => uint256[]) public sellerOrders;
+    mapping(bytes32 => Order) public orders;
+    mapping(address => bytes32[]) public buyerOrders;
+    mapping(address => bytes32[]) public sellerOrders;
     mapping(address => bool) public authorizedOperators;
 
     // 修饰符
-    modifier orderExists(uint256 orderId) {
-        require(orders[orderId].orderId != 0, "Order does not exist");
+    modifier orderExists(bytes32 orderId) {
+        require(orders[orderId].orderId != bytes32(0), "Order does not exist");
         _;
     }
 
-    modifier onlyBuyer(uint256 orderId) {
+    modifier onlyBuyer(bytes32 orderId) {
         require(orders[orderId].buyer == msg.sender, "Not the buyer");
         _;
     }
 
-    modifier onlySeller(uint256 orderId) {
+    modifier onlySeller(bytes32 orderId) {
         require(orders[orderId].seller == msg.sender, "Not the seller");
         _;
     }
 
-    modifier validOrderStatus(uint256 orderId, OrderStatus expectedStatus) {
+    modifier validOrderStatus(bytes32 orderId, OrderStatus expectedStatus) {
         require(orders[orderId].status == expectedStatus, "Invalid order status");
         _;
     }
@@ -116,6 +116,7 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
 
     /**
      * @notice 买家创建订单并付款（同步完成）
+     * @param orderId 外部传入的唯一订单ID
      * @param seller 卖家地址
      * @param rwaTokenAddress RWA Token合约地址
      * @param paymentTokenAddress 支付代币地址（0表示ETH）
@@ -124,6 +125,7 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
      * @param paymentAmount 支付金额
      */
     function createOrderAndPay(
+        bytes32 orderId,
         address seller,
         address rwaTokenAddress,
         address paymentTokenAddress,
@@ -140,9 +142,10 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
         nonZeroAddress(buyerReceiveAddress)
         nonZeroAmount(rwaTokenAmount)
         nonZeroAmount(paymentAmount)
-        returns (uint256 orderId)
+        returns (bytes32)
     {
-        orderId = ++orderCounter;
+        // 检查订单ID是否已存在
+        require(orders[orderId].orderId == bytes32(0), "Order ID already exists");
 
         // 验证付款金额
         if (paymentTokenAddress == address(0)) {
@@ -191,7 +194,7 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
      * @notice 卖家发货并完成交易
      * @param orderId 订单ID
      */
-    function shipAndComplete(uint256 orderId)
+    function shipAndComplete(bytes32 orderId)
         external
         nonReentrant
         whenNotPaused
@@ -235,7 +238,7 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
      * @notice 取消订单（买家或卖家都可以取消）
      * @param orderId 订单ID
      */
-    function cancelOrder(uint256 orderId)
+    function cancelOrder(bytes32 orderId)
         external
         nonReentrant
         whenNotPaused
@@ -338,7 +341,7 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
      * @param orderId 订单ID
      * @return 订单结构
      */
-    function getOrder(uint256 orderId) external view returns (Order memory) {
+    function getOrder(bytes32 orderId) external view returns (Order memory) {
         return orders[orderId];
     }
 
@@ -347,7 +350,7 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
      * @param buyer 买家地址
      * @return 订单ID数组
      */
-    function getBuyerOrders(address buyer) external view returns (uint256[] memory) {
+    function getBuyerOrders(address buyer) external view returns (bytes32[] memory) {
         return buyerOrders[buyer];
     }
 
@@ -356,7 +359,7 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
      * @param seller 卖家地址
      * @return 订单ID数组
      */
-    function getSellerOrders(address seller) external view returns (uint256[] memory) {
+    function getSellerOrders(address seller) external view returns (bytes32[] memory) {
         return sellerOrders[seller];
     }
 
