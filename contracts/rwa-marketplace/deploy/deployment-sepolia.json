@@ -1,0 +1,30 @@
+{
+  "network": "sepolia",
+  "deployer": "0xC4736E41D02faa7D735819AA9afa2ffee1Ce5931",
+  "deploymentTime": "2025-07-29T03:01:14.369Z",
+  "contracts": {
+    "rwaMarketplace": {
+      "address": "0xbB15E3f875D53B965AE8de992d2FC67709557043",
+      "name": "RWAMarketplace",
+      "description": "RWA Token交易市场合约"
+    },
+    "exampleRWAToken": {
+      "address": "0x91DaF662f2D8565C9Fa73a43Ca943ba78b0ff4B7",
+      "name": "ExampleRWAToken",
+      "description": "森林碳汇信用代币合约",
+      "symbol": "FCC",
+      "totalSupply": "500000"
+    },
+    "mockUSDT": {
+      "address": "0x4399f9fbaf83A631f88615A027152257CDa98c58",
+      "name": "MockUSDT",
+      "description": "示例USDT代币合约",
+      "symbol": "USDT",
+      "totalSupply": "1000000"
+    }
+  },
+  "configuration": {
+    "platformFee": 25,
+    "platformFeePercentage": 0.25
+  }
+}

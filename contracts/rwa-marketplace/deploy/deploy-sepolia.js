@@ -8,11 +8,13 @@ async function main() {
   // 获取部署账户
   const [deployer] = await ethers.getSigners();
   console.log("📝 部署账户:", deployer.address);
-  console.log("💰 账户余额:", ethers.utils.formatEther(await deployer.getBalance()));
+  
+  // 获取账户余额
+  const balance = await ethers.provider.getBalance(deployer.address);
+  console.log("💰 账户余额:", ethers.formatEther(balance));
 
   // 检查账户余额
-  const balance = await deployer.getBalance();
-  if (balance.lt(ethers.utils.parseEther("0.1"))) {
+  if (balance < ethers.parseEther("0.1")) {
     throw new Error("❌ 账户余额不足，请确保有足够的Sepolia ETH");
   }
 
@@ -21,8 +23,9 @@ async function main() {
     console.log("\n📦 部署RWA Marketplace合约...");
     const RWAMarketplace = await ethers.getContractFactory("RWAMarketplace");
     const rwaMarketplace = await RWAMarketplace.deploy();
-    await rwaMarketplace.deployed();
-    console.log("✅ RWA Marketplace合约已部署到:", rwaMarketplace.address);
+    await rwaMarketplace.waitForDeployment();
+    const rwaMarketplaceAddress = await rwaMarketplace.getAddress();
+    console.log("✅ RWA Marketplace合约已部署到:", rwaMarketplaceAddress);
 
     // 2. 部署示例RWA Token合约
     console.log("\n🌲 部署森林碳汇信用代币合约...");
@@ -30,22 +33,20 @@ async function main() {
     const exampleRWAToken = await ExampleRWAToken.deploy(
       "Forest Carbon Credit Token", // 代币名称
       "FCC",                       // 代币符号
-      ethers.utils.parseEther("500000"), // 500,000 tokens
+      ethers.parseEther("500000"), // 500,000 tokens
       deployer.address              // 发行人地址
     );
-    await exampleRWAToken.deployed();
-    console.log("✅ 森林碳汇信用代币合约已部署到:", exampleRWAToken.address);
+    await exampleRWAToken.waitForDeployment();
+    const exampleRWATokenAddress = await exampleRWAToken.getAddress();
+    console.log("✅ 森林碳汇信用代币合约已部署到:", exampleRWATokenAddress);
 
     // 3. 部署示例USDT代币合约（用于测试）
     console.log("\n💵 部署示例USDT代币合约...");
     const MockUSDT = await ethers.getContractFactory("MockUSDT");
-    const mockUSDT = await MockUSDT.deploy(
-      "Mock USDT",                 // 代币名称
-      "USDT",                      // 代币符号
-      ethers.utils.parseUnits("1000000", 6) // 1,000,000 USDT (6位小数)
-    );
-    await mockUSDT.deployed();
-    console.log("✅ 示例USDT代币合约已部署到:", mockUSDT.address);
+    const mockUSDT = await MockUSDT.deploy();
+    await mockUSDT.waitForDeployment();
+    const mockUSDTAddress = await mockUSDT.getAddress();
+    console.log("✅ 示例USDT代币合约已部署到:", mockUSDTAddress);
 
     // 4. 配置RWA Marketplace合约
     console.log("\n⚙️ 配置RWA Marketplace合约...");
@@ -57,18 +58,14 @@ async function main() {
 
     // 5. 验证合约
     console.log("\n🔍 验证合约...");
-    await verifyContract(rwaMarketplace.address, []);
-    await verifyContract(exampleRWAToken.address, [
+    await verifyContract(rwaMarketplaceAddress, []);
+    await verifyContract(exampleRWATokenAddress, [
       "Forest Carbon Credit Token",
       "FCC",
-      ethers.utils.parseEther("500000"),
+      ethers.parseEther("500000"),
       deployer.address
     ]);
-    await verifyContract(mockUSDT.address, [
-      "Mock USDT",
-      "USDT",
-      ethers.utils.parseUnits("1000000", 6)
-    ]);
+    await verifyContract(mockUSDTAddress, []);
 
     // 6. 保存部署信息
     const deploymentInfo = {
@@ -77,19 +74,19 @@ async function main() {
       deploymentTime: new Date().toISOString(),
       contracts: {
         rwaMarketplace: {
-          address: rwaMarketplace.address,
+          address: rwaMarketplaceAddress,
           name: "RWAMarketplace",
           description: "RWA Token交易市场合约"
         },
         exampleRWAToken: {
-          address: exampleRWAToken.address,
+          address: exampleRWATokenAddress,
           name: "ExampleRWAToken",
           description: "森林碳汇信用代币合约",
           symbol: "FCC",
           totalSupply: "500000"
         },
         mockUSDT: {
-          address: mockUSDT.address,
+          address: mockUSDTAddress,
           name: "MockUSDT",
           description: "示例USDT代币合约",
           symbol: "USDT",
@@ -109,15 +106,15 @@ async function main() {
 
     // 7. 打印部署摘要
     console.log("\n🎉 部署完成！");
-    console.log("=" * 50);
+    console.log("=".repeat(50));
     console.log("📋 部署摘要:");
     console.log("网络: Sepolia测试网");
     console.log("部署账户:", deployer.address);
-    console.log("RWA Marketplace:", rwaMarketplace.address);
-    console.log("森林碳汇代币:", exampleRWAToken.address);
-    console.log("示例USDT:", mockUSDT.address);
+    console.log("RWA Marketplace:", rwaMarketplaceAddress);
+    console.log("森林碳汇代币:", exampleRWATokenAddress);
+    console.log("示例USDT:", mockUSDTAddress);
     console.log("平台费用:", platformFee / 100, "%");
-    console.log("=" * 50);
+    console.log("=".repeat(50));
 
     return deploymentInfo;
 

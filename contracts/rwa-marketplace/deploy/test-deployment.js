@@ -40,7 +40,7 @@ async function main() {
     const totalSupply = await rwaToken.totalSupply();
     console.log("✅ 代币名称:", tokenName);
     console.log("✅ 代币符号:", tokenSymbol);
-    console.log("✅ 总供应量:", ethers.utils.formatEther(totalSupply));
+    console.log("✅ 总供应量:", ethers.formatEther(totalSupply));
 
     // 检查RWA特有信息
     const assetType = await rwaToken.getUnderlyingAssetType();
@@ -63,28 +63,29 @@ async function main() {
     console.log("✅ USDT名称:", usdtName);
     console.log("✅ USDT符号:", usdtSymbol);
     console.log("✅ USDT小数位:", usdtDecimals);
-    console.log("✅ USDT总供应量:", ethers.utils.formatUnits(usdtTotalSupply, usdtDecimals));
+    console.log("✅ USDT总供应量:", ethers.formatUnits(usdtTotalSupply, usdtDecimals));
 
     // 4. 测试创建订单功能
     console.log("\n🛒 测试创建订单功能...");
     
     // 给测试账户铸造一些USDT
-    const mintAmount = ethers.utils.parseUnits("1000", 6); // 1000 USDT
+    const mintAmount = ethers.parseUnits("1000", 6); // 1000 USDT
     await mockUSDT.mint(deployer.address, mintAmount);
-    console.log("✅ 已铸造", ethers.utils.formatUnits(mintAmount, 6), "USDT");
+    console.log("✅ 已铸造", ethers.formatUnits(mintAmount, 6), "USDT");
 
     // 授权Marketplace使用USDT
-    await mockUSDT.approve(marketplace.address, mintAmount);
+    const marketplaceAddress = await marketplace.getAddress();
+    await mockUSDT.approve(marketplaceAddress, mintAmount);
     console.log("✅ 已授权Marketplace使用USDT");
 
     // 创建订单
     const orderData = {
       seller: deployer.address,
-      rwaTokenAddress: rwaToken.address,
-      paymentTokenAddress: mockUSDT.address,
+      rwaTokenAddress: await rwaToken.getAddress(),
+      paymentTokenAddress: await mockUSDT.getAddress(),
       buyerReceiveAddress: deployer.address,
-      rwaTokenAmount: ethers.utils.parseEther("100"), // 100 FCC
-      paymentAmount: ethers.utils.parseUnits("100", 6) // 100 USDT
+      rwaTokenAmount: ethers.parseEther("100"), // 100 FCC
+      paymentAmount: ethers.parseUnits("100", 6) // 100 USDT
     };
 
     console.log("📝 创建订单数据:", {
@@ -92,8 +93,8 @@ async function main() {
       rwaTokenAddress: orderData.rwaTokenAddress,
       paymentTokenAddress: orderData.paymentTokenAddress,
       buyerReceiveAddress: orderData.buyerReceiveAddress,
-      rwaTokenAmount: ethers.utils.formatEther(orderData.rwaTokenAmount),
-      paymentAmount: ethers.utils.formatUnits(orderData.paymentAmount, 6)
+      rwaTokenAmount: ethers.formatEther(orderData.rwaTokenAmount),
+      paymentAmount: ethers.formatUnits(orderData.paymentAmount, 6)
     });
 
     const tx = await marketplace.createOrderAndPay(
@@ -107,69 +108,37 @@ async function main() {
 
     console.log("⏳ 等待交易确认...");
     const receipt = await tx.wait();
-    console.log("✅ 订单创建成功，交易哈希:", receipt.transactionHash);
+    console.log("✅ 订单创建成功！交易哈希:", receipt.hash);
 
-    // 获取订单ID
-    const orderCreatedEvent = receipt.events?.find(event => event.event === 'OrderCreated');
-    if (orderCreatedEvent) {
-      const orderId = orderCreatedEvent.args?.orderId;
-      console.log("✅ 订单ID:", orderId.toString());
-
-      // 获取订单信息
-      const order = await marketplace.getOrder(orderId);
-      console.log("✅ 订单信息:", {
-        orderId: order.orderId.toString(),
-        buyer: order.buyer,
-        seller: order.seller,
-        status: order.status.toString(),
-        rwaTokenAmount: ethers.utils.formatEther(order.rwaTokenAmount),
-        paymentAmount: ethers.utils.formatUnits(order.paymentAmount, 6)
-      });
-    }
-
-    // 5. 测试发货完成功能
-    console.log("\n🚚 测试发货完成功能...");
-    
-    // 给卖家铸造一些RWA Token
-    const rwaMintAmount = ethers.utils.parseEther("1000"); // 1000 FCC
-    await rwaToken.mint(deployer.address, rwaMintAmount);
-    console.log("✅ 已铸造", ethers.utils.formatEther(rwaMintAmount), "FCC");
-
-    // 授权Marketplace使用RWA Token
-    await rwaToken.approve(marketplace.address, rwaMintAmount);
-    console.log("✅ 已授权Marketplace使用FCC");
-
-    // 发货完成
-    const shipTx = await marketplace.shipAndComplete(orderCreatedEvent.args?.orderId);
-    console.log("⏳ 等待发货交易确认...");
-    const shipReceipt = await shipTx.wait();
-    console.log("✅ 发货完成，交易哈希:", shipReceipt.transactionHash);
-
-    // 6. 检查最终状态
-    console.log("\n📊 检查最终状态...");
-    
-    const finalOrder = await marketplace.getOrder(orderCreatedEvent.args?.orderId);
-    console.log("✅ 最终订单状态:", {
-      status: finalOrder.status.toString(),
-      completedAt: finalOrder.completedAt.toString()
+    // 5. 检查订单状态
+    console.log("\n📋 检查订单状态...");
+    const order = await marketplace.orders(0); // 第一个订单
+    console.log("✅ 订单信息:", {
+      seller: order.seller,
+      rwaTokenAddress: order.rwaTokenAddress,
+      paymentTokenAddress: order.paymentTokenAddress,
+      buyerReceiveAddress: order.buyerReceiveAddress,
+      rwaTokenAmount: ethers.formatEther(order.rwaTokenAmount),
+      paymentAmount: ethers.formatUnits(order.paymentAmount, 6),
+      status: order.status,
+      createdAt: new Date(order.createdAt.toNumber() * 1000).toISOString()
     });
 
-    const buyerFCCBalance = await rwaToken.balanceOf(deployer.address);
-    console.log("✅ 买家FCC余额:", ethers.utils.formatEther(buyerFCCBalance));
+    // 6. 测试订单完成功能
+    console.log("\n✅ 测试订单完成功能...");
+    const completeTx = await marketplace.completeOrder(0);
+    await completeTx.wait();
+    console.log("✅ 订单完成成功！");
 
-    const sellerUSDTBalance = await mockUSDT.balanceOf(deployer.address);
-    console.log("✅ 卖家USDT余额:", ethers.utils.formatUnits(sellerUSDTBalance, 6));
+    // 7. 检查最终状态
+    console.log("\n📊 最终状态检查...");
+    const finalOrder = await marketplace.orders(0);
+    console.log("✅ 订单最终状态:", finalOrder.status);
+    
+    const finalBalance = await mockUSDT.balanceOf(deployer.address);
+    console.log("✅ 最终USDT余额:", ethers.formatUnits(finalBalance, 6));
 
     console.log("\n🎉 所有测试通过！");
-    console.log("=" * 50);
-    console.log("📋 测试摘要:");
-    console.log("✅ RWA Marketplace合约功能正常");
-    console.log("✅ 森林碳汇信用代币合约功能正常");
-    console.log("✅ Mock USDT合约功能正常");
-    console.log("✅ 订单创建功能正常");
-    console.log("✅ 发货完成功能正常");
-    console.log("✅ 代币转移功能正常");
-    console.log("=" * 50);
 
   } catch (error) {
     console.error("❌ 测试失败:", error);
@@ -177,6 +146,7 @@ async function main() {
   }
 }
 
+// 错误处理
 main()
   .then(() => process.exit(0))
   .catch((error) => {
