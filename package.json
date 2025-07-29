@@ -1,7 +1,7 @@
 {
   "name": "bsc-starter-box",
   "version": "1.0.0",
-  "description": "A sample Truffle project that allows developers to deploy to the BNB Smart Chain",
+  "description": "A sample Truffle project that allows developers to deploy to the BNB Smart Chain with RWA Marketplace support",
   "main": "truffle-config.js",
   "directories": {
     "test": "test"
@@ -14,13 +14,30 @@
     "compile:bsc": "truffle compile --config=truffle-config.js",
     "migrate:bsc": "truffle migrate --config=truffle-config.js --network bscTestnet",
     "migrate:polygon": "truffle migrate --config=truffle-config.js --network polygonMainnet",
-    "migrate:conflux": "truffle migrate --config=truffle-config.js --network confluxMainnet"
+    "migrate:conflux": "truffle migrate --config=truffle-config.js --network confluxMainnet",
+    "deploy:chainlink": "npx hardhat run contracts/escrow/deploy/scripts/deploy-chainlink-oracle.js",
+    "deploy:marketplace": "npx hardhat run contracts/escrow/deploy/scripts/deploy-marketplace-with-chainlink.js",
+    "configure:feeds": "npx hardhat run contracts/escrow/deploy/scripts/configure-price-feeds.js",
+    "test:oracle": "npx hardhat run contracts/escrow/deploy/scripts/test-chainlink-oracle.js",
+    
+    "deploy:rwa-sepolia": "npx hardhat run contracts/rwa-marketplace/deploy/deploy-sepolia.js --network sepolia",
+    "deploy:rwa-bsc": "npx hardhat run contracts/rwa-marketplace/deploy/deploy-bsc.js --network bscTestnet",
+    "test:rwa-deployment": "npx hardhat run contracts/rwa-marketplace/deploy/test-deployment.js --network sepolia",
+    "compile:hardhat": "hardhat compile",
+    "test:hardhat": "hardhat test",
+    "node": "hardhat node",
+    "clean": "hardhat clean",
+    "coverage": "hardhat coverage",
+    "gas-report": "REPORT_GAS=true hardhat test"
   },
   "repository": {},
   "keywords": [
     "BSC",
     "BNB Smart Chain",
-    "BNB Chain"
+    "BNB Chain",
+    "RWA",
+    "marketplace",
+    "carbon-credit"
   ],
   "author": "",
   "license": "MIT",
@@ -30,7 +47,10 @@
     "@truffle/hdwallet-provider": "^1.7.0",
     "@types/chai": "^5.2.0",
     "@types/mocha": "^10.0.10",
-    "dotenv": "^9.0.2"
+    "dotenv": "^9.0.2",
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "hardhat": "^2.22.1"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.0",
