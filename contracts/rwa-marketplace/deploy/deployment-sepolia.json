@@ -4,7 +4,7 @@
   "deploymentTime": "2025-07-29T03:01:14.369Z",
   "contracts": {
     "rwaMarketplace": {
-      "address": "0xbB15E3f875D53B965AE8de992d2FC67709557043",
+      "address": "0x196738d76a0d44f8568488819a2435E284149daA",
       "name": "RWAMarketplace",
       "description": "RWA Token交易市场合约"
     },

@@ -123,6 +123,7 @@ describe("RWAMarketplace", function () {
       await expect(
         marketplace.connect(buyer).createOrderAndPay(
           orderId,
+          buyerAddress,
           sellerAddress,
           rwaTokenAddress,
           mockUSDTAddress, // USDT支付
@@ -168,6 +169,7 @@ describe("RWAMarketplace", function () {
       // 买家创建订单并付款
       await marketplace.connect(buyer).createOrderAndPay(
         orderId,
+        buyerAddress,
         sellerAddress,
         rwaTokenAddress,
         mockUSDTAddress,
@@ -184,7 +186,7 @@ describe("RWAMarketplace", function () {
       await rwaToken.connect(seller).approve(marketplaceAddress, ORDER_AMOUNT);
 
       // 卖家发货并完成交易
-      await expect(marketplace.connect(seller).shipAndComplete(orderId))
+      await expect(marketplace.connect(seller).shipAndComplete(orderId, sellerAddress))
         .to.emit(marketplace, "OrderCompleted");
 
       // 验证订单状态
@@ -220,6 +222,7 @@ describe("RWAMarketplace", function () {
       await expect(
         marketplace.connect(buyer).createOrderAndPay(
           orderId,
+          buyerAddress,
           sellerAddress,
           rwaTokenAddress,
           mockUSDTAddress,
@@ -244,6 +247,7 @@ describe("RWAMarketplace", function () {
       await expect(
         marketplace.connect(buyer).createOrderAndPay(
           orderId,
+          buyerAddress,
           sellerAddress,
           rwaTokenAddress,
           mockUSDTAddress, // 指定代币地址

@@ -30,6 +30,7 @@ const orderId = ethers.keccak256(ethers.toUtf8Bytes("ORDER_001"));
 // 买家创建订单并付款
 await marketplace.createOrderAndPay(
     orderId,                    // 外部传入的唯一订单ID
+    buyerAddress,               // 买家地址
     sellerAddress,              // 卖家地址
     rwaTokenAddress,            // RWA Token合约地址
     paymentTokenAddress,        // 支付代币地址（0表示ETH）
@@ -45,7 +46,7 @@ await marketplace.createOrderAndPay(
 卖家发货并完成交易：
 
 ```javascript
-await marketplace.shipAndComplete(orderId);
+await marketplace.shipAndComplete(orderId, sellerReceiveAddress);
 ```
 
 ### 3. 订单取消
@@ -102,6 +103,7 @@ const issuer = await rwaToken.getIssuer();
 ```javascript
 await marketplace.createOrderAndPay(
     orderId,
+    buyerAddress,
     sellerAddress,
     rwaTokenAddress,
     "0x0000000000000000000000000000000000000000", // ETH地址
@@ -120,6 +122,7 @@ await paymentToken.approve(marketplaceAddress, paymentAmount);
 // 创建订单
 await marketplace.createOrderAndPay(
     orderId,
+    buyerAddress,
     sellerAddress,
     rwaTokenAddress,
     paymentTokenAddress,

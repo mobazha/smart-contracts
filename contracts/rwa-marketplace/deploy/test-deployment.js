@@ -97,7 +97,12 @@ async function main() {
       paymentAmount: ethers.formatUnits(orderData.paymentAmount, 6)
     });
 
+    // 生成唯一的订单ID
+    const orderId = ethers.keccak256(ethers.toUtf8Bytes("TEST_ORDER_001"));
+    
     const tx = await marketplace.createOrderAndPay(
+      orderId,
+      deployer.address,
       orderData.seller,
       orderData.rwaTokenAddress,
       orderData.paymentTokenAddress,
@@ -112,8 +117,9 @@ async function main() {
 
     // 5. 检查订单状态
     console.log("\n📋 检查订单状态...");
-    const order = await marketplace.orders(0); // 第一个订单
+    const order = await marketplace.getOrder(orderId);
     console.log("✅ 订单信息:", {
+      buyer: order.buyer,
       seller: order.seller,
       rwaTokenAddress: order.rwaTokenAddress,
       paymentTokenAddress: order.paymentTokenAddress,
@@ -126,13 +132,13 @@ async function main() {
 
     // 6. 测试订单完成功能
     console.log("\n✅ 测试订单完成功能...");
-    const completeTx = await marketplace.completeOrder(0);
+    const completeTx = await marketplace.shipAndComplete(orderId, deployer.address);
     await completeTx.wait();
     console.log("✅ 订单完成成功！");
 
     // 7. 检查最终状态
     console.log("\n📊 最终状态检查...");
-    const finalOrder = await marketplace.orders(0);
+    const finalOrder = await marketplace.getOrder(orderId);
     console.log("✅ 订单最终状态:", finalOrder.status);
     
     const finalBalance = await mockUSDT.balanceOf(deployer.address);

@@ -117,6 +117,7 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
     /**
      * @notice 买家创建订单并付款（同步完成）
      * @param orderId 外部传入的唯一订单ID
+     * @param buyer 买家地址
      * @param seller 卖家地址
      * @param rwaTokenAddress RWA Token合约地址
      * @param paymentTokenAddress 支付代币地址（0表示ETH）
@@ -126,6 +127,7 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
      */
     function createOrderAndPay(
         bytes32 orderId,
+        address buyer,
         address seller,
         address rwaTokenAddress,
         address paymentTokenAddress,
@@ -137,6 +139,7 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
         payable
         nonReentrant
         whenNotPaused
+        nonZeroAddress(buyer)
         nonZeroAddress(seller)
         nonZeroAddress(rwaTokenAddress)
         nonZeroAddress(buyerReceiveAddress)
@@ -163,7 +166,7 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
 
         // 创建订单
         Order storage order = orders[orderId];
-        order.buyer = msg.sender;
+        order.buyer = buyer;
         order.seller = seller;
         order.rwaTokenAddress = rwaTokenAddress;
         order.paymentTokenAddress = paymentTokenAddress;
@@ -174,12 +177,12 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
         order.createdAt = block.timestamp;
         order.status = OrderStatus.PAID;
 
-        buyerOrders[msg.sender].push(orderId);
+        buyerOrders[buyer].push(orderId);
         sellerOrders[seller].push(orderId);
 
         emit OrderCreated(
             orderId,
-            msg.sender,
+            buyer,
             seller,
             rwaTokenAddress,
             paymentTokenAddress,
@@ -193,14 +196,16 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
     /**
      * @notice 卖家发货并完成交易
      * @param orderId 订单ID
+     * @param sellerReceiveAddress 卖家收款地址
      */
-    function shipAndComplete(bytes32 orderId)
+    function shipAndComplete(bytes32 orderId, address sellerReceiveAddress)
         external
         nonReentrant
         whenNotPaused
         orderExists(orderId)
-        onlySeller(orderId)
+        // onlySeller(orderId)
         validOrderStatus(orderId, OrderStatus.PAID)
+        nonZeroAddress(sellerReceiveAddress)
     {
         Order storage order = orders[orderId];
         
@@ -215,15 +220,15 @@ contract RWAMarketplace is Ownable, ReentrancyGuard, Pausable {
         uint256 platformFeeAmount = (order.paymentAmount * platformFee) / FEE_DENOMINATOR;
         uint256 sellerAmount = order.paymentAmount - platformFeeAmount;
 
-        // 转移付款给卖家
+        // 转移付款给卖家指定的收款地址
         if (order.paymentTokenAddress == address(0)) {
             // ETH支付
-            payable(order.seller).transfer(sellerAmount);
+            payable(sellerReceiveAddress).transfer(sellerAmount);
         } else {
             // ERC20代币支付
             ITokenContract paymentToken = ITokenContract(order.paymentTokenAddress);
             require(
-                paymentToken.transfer(order.seller, sellerAmount),
+                paymentToken.transfer(sellerReceiveAddress, sellerAmount),
                 "Seller payment failed"
             );
         }

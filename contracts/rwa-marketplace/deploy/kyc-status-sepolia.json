@@ -1,0 +1,11 @@
+{
+  "network": "sepolia",
+  "setter": "0xC4736E41D02faa7D735819AA9afa2ffee1Ce5931",
+  "settingTime": "2025-07-29T05:49:25.169Z",
+  "verifiedAddresses": [
+    "0x351b8cdb9698e2563be7f6dca1f3d70e8770e277",
+    "0xC4736E41D02faa7D735819AA9afa2ffee1Ce5931"
+  ],
+  "marketplaceAddress": "0x196738d76a0d44f8568488819a2435E284149daA",
+  "rwaTokenAddress": "0x91DaF662f2D8565C9Fa73a43Ca943ba78b0ff4B7"
+}

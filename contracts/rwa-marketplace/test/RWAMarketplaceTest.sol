@@ -47,6 +47,7 @@ contract RWAMarketplaceTest {
         // 买家创建订单并付款
         marketplace.createOrderAndPay{value: PAYMENT_AMOUNT}(
             orderId,
+            buyer,
             seller,
             address(rwaToken),
             address(0), // ETH支付
@@ -71,6 +72,7 @@ contract RWAMarketplaceTest {
         // 买家创建订单并付款
         marketplace.createOrderAndPay{value: PAYMENT_AMOUNT}(
             orderId,
+            buyer, // 买家地址
             seller,
             address(rwaToken),
             address(0), // ETH支付
@@ -86,7 +88,7 @@ contract RWAMarketplaceTest {
         rwaToken.approve(address(marketplace), ORDER_AMOUNT);
         
         // 卖家发货并完成交易
-        marketplace.shipAndComplete(orderId);
+        marketplace.shipAndComplete(orderId, seller);
         
         // 验证订单状态
         RWAMarketplace.Order memory order = marketplace.getOrder(orderId);
@@ -103,6 +105,7 @@ contract RWAMarketplaceTest {
         // 买家创建订单并付款
         marketplace.createOrderAndPay{value: PAYMENT_AMOUNT}(
             orderId,
+            buyer,
             seller,
             address(rwaToken),
             address(0), // ETH支付
@@ -129,6 +132,7 @@ contract RWAMarketplaceTest {
         // 买家创建多个订单
         marketplace.createOrderAndPay{value: PAYMENT_AMOUNT}(
             orderId1,
+            buyer,
             seller,
             address(rwaToken),
             address(0),
@@ -139,6 +143,7 @@ contract RWAMarketplaceTest {
         
         marketplace.createOrderAndPay{value: PAYMENT_AMOUNT}(
             orderId2,
+            buyer,
             seller,
             address(rwaToken),
             address(0),
@@ -161,6 +166,7 @@ contract RWAMarketplaceTest {
         // 买家创建订单
         marketplace.createOrderAndPay{value: PAYMENT_AMOUNT}(
             orderId,
+            buyer,
             seller,
             address(rwaToken),
             address(0),
@@ -203,6 +209,7 @@ contract RWAMarketplaceTest {
         // 创建订单
         marketplace.createOrderAndPay{value: PAYMENT_AMOUNT}(
             orderId,
+            buyer,
             seller,
             address(rwaToken),
             address(0),
