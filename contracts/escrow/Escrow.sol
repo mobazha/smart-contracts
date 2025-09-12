@@ -36,6 +36,7 @@ contract Escrow {
 
     struct Transaction {
         uint256 value;
+        address payerAddress; //address of the party who paid for the transaction
         uint256 lastModified;
         Status status;
         TransactionType transactionType;
@@ -192,6 +193,7 @@ contract Escrow {
             timeoutHours,
             scriptHash,
             msg.value,
+            msg.sender,
             uniqueId,
             TransactionType.ETH,
             address(0)
@@ -249,6 +251,7 @@ contract Escrow {
             timeoutHours,
             scriptHash,
             value,
+            msg.sender,
             uniqueId,
             TransactionType.TOKEN,
             tokenAddress
@@ -436,23 +439,54 @@ contract Escrow {
             transactions[scriptHash].lastModified
         );
 
-        //if the minimum number (`threshold`) of signatures are not present and
-        //either the timelock has not expired or the release was not signed by
-        //the seller then revert
+        //if the minimum number (`threshold`) of signatures are not present,
+        //check if this is a seller refund case (single destination to payerAddress
+        //signed by seller). If not a seller refund, then either the timelock has
+        //not expired or the release was not signed by the seller, then revert
         if (sigV.length < transactions[scriptHash].threshold) {
-            if (!timeLockExpired) {
-                revert("Min number of sigs not present and timelock not expired");
+            // Check if this is a seller refund case
+            bool isSellerRefund = false;
+            if (destinations.length == 1 && 
+                destinations[0] == transactions[scriptHash].payerAddress) {
+                
+                // Verify that the signature is from the seller
+                bytes32 txHash = getTransactionHash(
+                    scriptHash,
+                    destinations,
+                    amounts
+                );
+                
+                // Check if any of the signatures is from the seller
+                for (uint256 i = 0; i < sigV.length; i++) {
+                    address recovered = ecrecover(
+                        txHash,
+                        sigV[i],
+                        sigR[i],
+                        sigS[i]
+                    );
+                    
+                    if (recovered == transactions[scriptHash].seller) {
+                        isSellerRefund = true;
+                        break;
+                    }
+                }
             }
-            else if (
-                !transactions[scriptHash].voted[keccak256(
-                    abi.encodePacked(
-                        transactions[scriptHash].seller,
-                        transactions[scriptHash].noOfReleases
-                    )
-                )]
-            )
-            {
-                revert("Min number of sigs not present and seller did not sign");
+            
+            if (!isSellerRefund) {
+                if (!timeLockExpired) {
+                    revert("Min number of sigs not present and timelock not expired");
+                }
+                else if (
+                    !transactions[scriptHash].voted[keccak256(
+                        abi.encodePacked(
+                            transactions[scriptHash].seller,
+                            transactions[scriptHash].noOfReleases
+                        )
+                    )]
+                )
+                {
+                    revert("Min number of sigs not present and seller did not sign");
+                }
             }
         }
     }
@@ -597,6 +631,7 @@ contract Escrow {
     * @param scriptHash The keccak256 hash of the redeem script. See
     * specification for more details
     * @param value The amount of currency to add to escrow
+    * @param payerAddress The address of the party who paid for the transaction
     * @param uniqueId A nonce chosen by the buyer
     * @param transactionType Indicates whether the Mobazha trade is using
     * ETH or ERC20 tokens for payment
@@ -611,6 +646,7 @@ contract Escrow {
         uint32 timeoutHours,
         bytes32 scriptHash,
         uint256 value,
+        address payerAddress,
         bytes20 uniqueId,
         TransactionType transactionType,
         address tokenAddress
@@ -648,6 +684,7 @@ contract Escrow {
         transaction.seller = seller;
         transaction.moderator = moderator;
         transaction.value = value;
+        transaction.payerAddress = payerAddress;
         transaction.status = Status.FUNDED;
         //solium-disable-next-line security/no-block-members
         transaction.lastModified = block.timestamp;

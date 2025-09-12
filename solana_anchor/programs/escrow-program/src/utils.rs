@@ -65,20 +65,28 @@ where
     )?;
     
     if !time_expired {
-        // Filter valid signers
-        let valid_signers: Vec<_> = all_signers.into_iter()
-            .filter(|signer| {
-                *signer == buyer || 
-                *signer == seller || 
-                (base.moderator.is_some() && *signer == base.moderator.unwrap())
-            })
-            .collect();
+        // Check if this is a seller refund case
+        let is_seller_refund = recipients.len() == 1 && 
+                              recipients[0].is_some() && 
+                              recipients[0].unwrap() == base.payer_address &&
+                              all_signers.contains(&seller);
+        
+        if !is_seller_refund {
+            // Filter valid signers
+            let valid_signers: Vec<_> = all_signers.into_iter()
+                .filter(|signer| {
+                    *signer == buyer || 
+                    *signer == seller || 
+                    (base.moderator.is_some() && *signer == base.moderator.unwrap())
+                })
+                .collect();
 
-        // Check the number of valid signatures
-        require!(
-            valid_signers.len() >= required_signatures as usize,
-            EscrowError::InsufficientSignatures
-        );
+            // Check the number of valid signatures
+            require!(
+                valid_signers.len() >= required_signatures as usize,
+                EscrowError::InsufficientSignatures
+            );
+        }
     } else {
         // Timelock has expired - only seller signature is required
         require!(

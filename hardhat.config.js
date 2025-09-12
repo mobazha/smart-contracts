@@ -17,6 +17,8 @@ module.exports = {
   paths: {
     sources: "./contracts/rwa-marketplace",
     tests: "./contracts/rwa-marketplace/test",
+    // sources: "./contracts",
+    // tests: "./test",
     cache: "./cache",
     artifacts: "./artifacts"
   },
@@ -40,7 +42,9 @@ module.exports = {
       skipDryRun: true,
     },
     sepolia: {
-      url: `https://eth-sepolia.g.alchemy.com/v2/${process.env.alchemy_PROJECT_ID}`,
+      url: process.env.alchemy_PROJECT_ID 
+        ? `https://eth-sepolia.g.alchemy.com/v2/${process.env.alchemy_PROJECT_ID}`
+        : "https://rpc.sepolia.org",
       accounts: process.env.MNEMONIC ? { mnemonic: process.env.MNEMONIC } : [],
       network_id: 11155111,
       confirmations: 2,

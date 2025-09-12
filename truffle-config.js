@@ -57,7 +57,7 @@ module.exports = {
       port: 8545,            // Standard Ethereum port (default: none)
       network_id: "*",       // Any network (default: none)
     },
-    ethereumTestnet: {
+    sepolia: {
       provider: () => new HDWalletProvider(mnemonic, `https://eth-sepolia.g.alchemy.com/v2/${process.env.alchemy_PROJECT_ID}`),
       network_id: 11155111,
       confirmations: 2,
@@ -130,7 +130,8 @@ module.exports = {
         optimizer: {
           enabled: true,
           runs: 200
-        }
+        },
+        viaIR: true,        // Enable viaIR to handle stack too deep errors
         // evmVersion: "byzantium"
       }
     }

@@ -10,6 +10,7 @@ pub struct EscrowAccount {
     pub buyer: Pubkey,
     pub seller: Pubkey,
     pub moderator: Option<Pubkey>,
+    pub payer_address: Pubkey, // address of the party who paid for the transaction
     pub required_signatures: u8,
     pub unlock_time: i64,
     pub unique_id: [u8; 20],
@@ -36,6 +37,7 @@ impl SolEscrow {
                           32 + // buyer
                           32 + // seller
                           33 + // moderator (Option<Pubkey>)
+                          32 + // payer_address
                           8 + // amount
                           8 + // unlock_time
                           1 + // required_signatures
@@ -49,6 +51,7 @@ impl TokenEscrow {
                           32 + // buyer
                           32 + // seller
                           33 + // moderator (Option<Pubkey>)
+                          32 + // payer_address
                           32 + // mint
                           8 + // amount
                           8 + // unlock_time
@@ -65,6 +68,7 @@ impl Default for SolEscrow {
                 buyer: Pubkey::default(),
                 seller: Pubkey::default(),
                 moderator: None,
+                payer_address: Pubkey::default(),
                 required_signatures: 0,
                 unlock_time: 0,
                 unique_id: [0; 20],
@@ -83,6 +87,7 @@ impl Default for TokenEscrow {
                 buyer: Pubkey::default(),
                 seller: Pubkey::default(),
                 moderator: None,
+                payer_address: Pubkey::default(),
                 required_signatures: 0,
                 unlock_time: 0,
                 unique_id: [0; 20],
@@ -111,6 +116,7 @@ impl EscrowAccount {
         buyer: Pubkey,
         seller: Pubkey,
         moderator: Option<Pubkey>,
+        payer_address: Pubkey,
         required_signatures: u8,
         unlock_time: i64,
         unique_id: [u8; 20],
@@ -122,6 +128,7 @@ impl EscrowAccount {
             buyer,
             seller,
             moderator,
+            payer_address,
             required_signatures,
             unlock_time,
             unique_id,

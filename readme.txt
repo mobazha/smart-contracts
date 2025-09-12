@@ -2,6 +2,8 @@
 2. Run migration
 npm run migrate:polygon
 
+npx hardhat run scripts/deploy-escrow.js --network sepolia
+
 3. Update the new version in remix in Deploy & run transactions view
 open https://remix.ethereum.org/
 In File view, Select ABI

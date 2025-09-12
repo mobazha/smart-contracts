@@ -55,6 +55,7 @@ pub fn handler(
         ctx.accounts.buyer.key(),
         ctx.accounts.seller.key(),
         moderator,
+        ctx.accounts.payer.key(), // payer_address
         required_signatures,
         ctx.accounts.clock.unix_timestamp + (unlock_hours * 3600) as i64,
         unique_id,
