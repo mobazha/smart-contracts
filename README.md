@@ -149,7 +149,7 @@ npm run compile
 npm run migrate:polygon
 
 To generate abi and bin (using @chainsafe/truffle-plugin-abigen plugin):
-truffle run abigen
+npx truffle run abigen
 
 To generate go file:
 abigen --bin=bin/Escrow.bin  --abi=abi/Escrow.abi --pkg Escrow --out ../escrow_v1.go
