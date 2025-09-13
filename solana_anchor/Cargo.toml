@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "programs/escrow-program",
+    "programs/contract-manager",
 ]
 resolver = "2"
 

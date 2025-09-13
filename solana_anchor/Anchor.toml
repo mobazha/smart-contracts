@@ -5,12 +5,15 @@ init-if-needed = true
 
 [programs.localnet]
 escrow_program = "25ecY9sGUkFyy78aYaSbdWGMgySSKZvPjQunf6Uk23qk"
+contract_manager = "6LmWMjAMAfVdc8mpgPjHvFLa2sbcudiLiJT3bAGRYMMD"
 
 [programs.devnet]
 escrow_program = "25ecY9sGUkFyy78aYaSbdWGMgySSKZvPjQunf6Uk23qk"
+contract_manager = "6LmWMjAMAfVdc8mpgPjHvFLa2sbcudiLiJT3bAGRYMMD"
 
 [programs.mainnet]
 escrow_program = "25ecY9sGUkFyy78aYaSbdWGMgySSKZvPjQunf6Uk23qk"
+contract_manager = "6LmWMjAMAfVdc8mpgPjHvFLa2sbcudiLiJT3bAGRYMMD"
 
 [registry]
 url = "https://anchor.projectserum.com"
@@ -21,6 +24,8 @@ wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "yarn run mocha -t 1000000 'tests/**/*.js'"
+test-contract-manager = "yarn run mocha -t 1000000 tests/contract-manager.js"
+test-escrow = "yarn run mocha -t 1000000 tests/escrow-program.js"
 
 [toolchain]
 anchor_version = "0.31.0"
